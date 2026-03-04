@@ -1,0 +1,2434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorldBuilder</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="scenes.css">
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="features.css">
+  <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Aller au contenu principal</a>
+
+<!-- ===================== HOME PAGE ===================== -->
+<div id="home-page" class="page">
+  <div class="home-header">
+    <div>
+      <h1 class="app-title">WorldBuilder</h1>
+      <p class="app-subtitle">Outil de worldbuilding pour romans</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-ghost" onclick="openBibliotheque()">📚 Bibliothèque</button>
+      <button class="btn btn-primary btn-new-project">+ Nouveau projet</button>
+    </div>
+  </div>
+  <div class="home-content">
+    <div style="margin-bottom:16px;position:relative;">
+      <input type="text" id="home-search" class="form-control" placeholder="🔍 Rechercher un projet..." oninput="debouncedHomeSearch()" autocomplete="off" aria-label="Rechercher un projet" style="width:100%;padding:6px 10px;">
+      <div id="home-search-results" class="search-results hidden" style="position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:4px;max-height:200px;overflow-y:auto;z-index:20;"></div>
+    </div>
+    <div id="projects-grid" class="projects-grid"></div>
+    <div id="no-projects" class="no-projects hidden">
+      <div class="no-icon">📚</div>
+      <h3>Aucun projet pour l'instant</h3>
+      <p>Commencez par créer votre premier projet.</p>
+      <button class="btn btn-primary btn-new-project" style="margin-top:16px">+ Créer un projet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PROJECT PAGE ===================== -->
+<div id="project-page" class="page hidden">
+
+  <header class="project-header">
+    <div class="header-left">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <h1 id="project-name-header" class="project-title"></h1>
+    </div>
+    <div class="header-right">
+      <div id="global-search-container" style="position:relative; margin-right:12px;">
+        <input type="text" id="global-search" class="form-control" placeholder="🔍 Rechercher (Ctrl+K)..." autocomplete="off" aria-label="Recherche globale" style="width:240px; padding:4px 8px;">
+        <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
+      </div>
+      <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">📚 Bibliothèque</button>
+      <div class="dropdown" id="dropdown-container">
+        <button class="btn btn-ghost dropdown-btn" onclick="toggleDropdown()">
+          Changer de projet
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="project-dropdown" class="dropdown-menu hidden"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar overlay -->
+  <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebarMobile()"></div>
+
+  <div class="project-layout">
+
+    <aside id="sidebar" class="sidebar" role="navigation" aria-label="Navigation principale">
+      <nav class="sidebar-nav">
+        <button class="nav-item" data-section="dashboard" onclick="navigateTo('dashboard')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-item" data-section="personnages" onclick="navigateTo('personnages')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <span class="nav-label">Personnages</span>
+        </button>
+        <button class="nav-item" data-section="lieux" onclick="navigateTo('lieux')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </span>
+          <span class="nav-label">Lieux</span>
+        </button>
+        <button class="nav-item" data-section="chapitres" onclick="navigateTo('chapitres')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          </span>
+          <span class="nav-label">Chapitres</span>
+        </button>
+        <button class="nav-item" data-section="scenes" onclick="navigateTo('scenes')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </span>
+          <span class="nav-label">Scènes</span>
+        </button>
+        <button class="nav-item" data-section="manuscrit" onclick="navigateTo('manuscrit')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16M4 12h16M4 5h16"/></svg>
+          </span>
+          <span class="nav-label">Manuscrit</span>
+        </button>
+        <!-- Playlists -->
+        <button class="nav-item" data-section="playlists" onclick="navigateTo('playlists')">
+          <span class="nav-icon">🎧</span>
+          <span class="nav-label">Playlists</span>
+        </button>
+        <!-- Relations -->
+        <button class="nav-item" data-section="relations" onclick="navigateTo('relations')">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-label">Relations</span>
+        </button>
+        <!-- Timeline -->
+        <button class="nav-item" data-section="timeline" onclick="navigateTo('timeline')">
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Timeline</span>
+        </button>
+        <!-- Notes -->
+        <button class="nav-item" data-section="notes" onclick="navigateTo('notes')">
+          <span class="nav-icon">📝</span>
+          <span class="nav-label">Notes</span>
+        </button>
+        <!-- Citations -->
+        <button class="nav-item" data-section="citations" onclick="navigateTo('citations')">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Citations</span>
+        </button>
+        <!-- Journal -->
+        <button class="nav-item" data-section="journal" onclick="navigateTo('journal')">
+          <span class="nav-icon">📔</span>
+          <span class="nav-label">Journal</span>
+        </button>
+        <div id="custom-sections-nav"></div>
+        <button class="nav-item" data-section="parametres" onclick="navigateTo('parametres')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </span>
+          <span class="nav-label">Paramètres</span>
+        </button>
+      </nav>
+    </aside>
+
+    <main id="main-content" class="main-content">
+
+      <!-- Dashboard -->
+      <section id="section-dashboard" class="content-section">
+        <div class="section-header">
+          <h2>Dashboard</h2>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card" onclick="navigateTo('personnages')" style="cursor:pointer">
+            <div class="stat-icon">👤</div>
+            <div class="stat-value" id="stat-personnages">0</div>
+            <div class="stat-label">Personnages</div>
+          </div>
+          <div class="stat-card" onclick="navigateTo('lieux')" style="cursor:pointer">
+            <div class="stat-icon">📍</div>
+            <div class="stat-value" id="stat-lieux">0</div>
+            <div class="stat-label">Lieux</div>
+          </div>
+          <div class="stat-card" onclick="navigateTo('chapitres')" style="cursor:pointer">
+            <div class="stat-icon">📖</div>
+            <div class="stat-value" id="stat-chapitres">0</div>
+            <div class="stat-label">Chapitres</div>
+          </div>
+          <div class="stat-card" onclick="navigateTo('relations')" style="cursor:pointer">
+            <div class="stat-icon">🔗</div>
+            <div class="stat-value" id="stat-relations">0</div>
+            <div class="stat-label">Relations</div>
+          </div>
+        </div>
+        <canvas id="dashboard-chart" style="width:100%;height:150px;margin-bottom:24px"></canvas>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:24px">
+          <div style="background:var(--white);padding:16px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+            <h3 style="margin:0 0 12px 0;font-size:14px">Types de relations</h3>
+            <canvas id="chart-rel-types" style="max-height:200px"></canvas>
+          </div>
+          <div style="background:var(--white);padding:16px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+            <h3 style="margin:0 0 12px 0;font-size:14px">Statut des chapitres</h3>
+            <canvas id="chart-chap-statut" style="max-height:200px"></canvas>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:24px">
+          <div style="background:var(--white);padding:16px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+            <h3 style="margin:0 0 12px 0;font-size:14px">Personnages par rôle</h3>
+            <canvas id="chart-pers-roles" style="max-height:200px"></canvas>
+          </div>
+          <div id="chart-network-container" style="background:var(--white);padding:16px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);height:200px;position:relative;">
+            <h3 style="margin:0 0 12px 0;font-size:14px">Réseau de connexions</h3>
+            <div id="chart-network" style="width:100%;height:120px;"></div>
+          </div>
+        </div>
+        <div id="dashboard-extra-metrics" class="dashboard-desc hidden" style="padding:12px 20px"></div>
+        <div id="dashboard-desc" class="dashboard-desc hidden"></div>
+      </section>
+
+      <!-- Personnages -->
+      <section id="section-personnages" class="content-section hidden">
+        <div class="section-header">
+          <h2>Personnages</h2>
+          <button class="btn btn-primary" onclick="openCharacterModal()">+ Ajouter</button>
+        </div>
+        <div id="personnages-grid" class="cards-grid"></div>
+        <div id="no-personnages" class="no-items hidden">
+          <div class="no-icon">👤</div>
+          <p>Aucun personnage pour l'instant.</p>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="openCharacterModal()">+ Créer un personnage</button>
+        </div>
+      </section>
+
+      <!-- Lieux -->
+      <section id="section-lieux" class="content-section hidden">
+        <div class="section-header">
+          <h2>Lieux</h2>
+          <button class="btn btn-primary" onclick="openLocationModal()">+ Ajouter</button>
+        </div>
+        <div id="lieux-grid" class="cards-grid"></div>
+        <div id="no-lieux" class="no-items hidden">
+          <div class="no-icon">📍</div>
+          <p>Aucun lieu pour l'instant.</p>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="openLocationModal()">+ Créer un lieu</button>
+        </div>
+      </section>
+
+      <!-- Chapitres -->
+      <section id="section-chapitres" class="content-section hidden">
+        <div class="section-header">
+          <h2>Chapitres</h2>
+          <button class="btn btn-primary" onclick="openChapterModal()">+ Ajouter</button>
+        </div>
+        <div id="chapitres-list" class="chapters-list"></div>
+        <div id="no-chapitres" class="no-items hidden">
+          <div class="no-icon">📖</div>
+          <p>Aucun chapitre pour l'instant.</p>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="openChapterModal()">+ Créer un chapitre</button>
+        </div>
+        <div id="chapter-timeline-view" style="margin-top:24px"></div>
+      </section>
+
+      <!-- Scènes -->
+      <section id="section-scenes" class="content-section hidden">
+        <div class="section-header">
+          <h2>Scènes</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="scenes-view-btns">
+              <button id="scenes-btn-list" class="btn btn-secondary btn-sm active" onclick="setScenesView('list')" title="Vue liste">☰ Liste</button>
+              <button id="scenes-btn-cards" class="btn btn-secondary btn-sm" onclick="setScenesView('cards')" title="Vue tableau de liège">⊞ Cartes</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="openImportSceneModal()">⬇ Bibliothèque</button>
+            <button class="btn btn-primary btn-sm" onclick="openLocalSceneModal()">+ Nouvelle scène</button>
+          </div>
+        </div>
+        <!-- Stats bar -->
+        <div id="scenes-stats-bar" class="scenes-stats-bar"></div>
+        <!-- Merge bar -->
+        <div id="scenes-merge-bar" class="scenes-merge-bar hidden">
+          <span class="merge-count">0 scènes sélectionnées</span>
+          <button class="btn btn-primary btn-sm" onclick="mergeSelectedScenes()">🔀 Fusionner</button>
+          <button class="btn btn-ghost btn-sm" onclick="scenesViewState.selected.clear();_updateMergeBar();renderScenes()">✕ Désélectionner</button>
+        </div>
+        <!-- Unassigned -->
+        <div class="scenes-block">
+          <div class="scenes-block-header">
+            <h3 class="scenes-block-title">Scènes non assignées</h3>
+            <span id="unassigned-count" class="scene-count-badge">0</span>
+          </div>
+          <div id="scenes-unassigned" class="scenes-drop-zone"
+               ondragover="onDragOver(event)"
+               ondragleave="onDragLeave(event)"
+               ondrop="onDropScene(event, null)"
+               data-chapter-id="">
+            <div class="drop-hint">Glisser une scène ici pour la désassigner</div>
+          </div>
+        </div>
+        <!-- By chapter (rendered by JS) -->
+        <div id="scenes-by-chapter"></div>
+      </section>
+
+      <!-- Manuscrit -->
+      <section id="section-manuscrit" class="content-section hidden">
+        <div class="section-header">
+          <h2>Manuscrit</h2>
+        </div>
+        <div class="manuscrit-container">
+          <div class="manuscrit-sidebar">
+            <h3>Chapitres disponibles</h3>
+            <div id="manuscript-chapters-list" class="manuscript-chapters-list"
+                 ondragover="onManuscriptDragOver(event)"
+                 ondragleave="onManuscriptDragLeave(event)"
+                 ondrop="onManuscriptDrop(event,null)">
+            </div>
+          </div>
+          <div class="manuscrit-main">
+            <div id="manuscript-structure"></div>
+            <button class="btn btn-secondary btn-sm" onclick="addManuscriptPart()">+ Ajouter partie</button>
+            <div id="manuscript-stats" class="manuscript-stats" style="margin-top:8px;font-size:13px;color:var(--gray-600)"></div>
+            <div class="manuscrit-footer" style="margin-top:16px">
+              <button class="btn btn-primary" onclick="previewManuscript()">Prévisualiser</button>
+              <button class="btn btn-primary" onclick="openExportModal()">Exporter ebook</button>
+            </div>
+
+            <!-- EPUB Métadonnées -->
+            <div class="epub-meta-section">
+              <h4>📚 Métadonnées EPUB</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="epub-title">Titre</label>
+                  <input type="text" id="epub-title" class="form-control" placeholder="Titre du livre">
+                </div>
+                <div class="form-group">
+                  <label for="epub-author">Auteur</label>
+                  <input type="text" id="epub-author" class="form-control" placeholder="Nom de l'auteur">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="epub-language">Langue</label>
+                  <select id="epub-language" class="form-control">
+                    <option value="fr">Français</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="epub-isbn">ISBN</label>
+                  <input type="text" id="epub-isbn" class="form-control" placeholder="978-...">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="epub-description">Description / 4e de couverture</label>
+                <textarea id="epub-description" class="form-control" rows="3"></textarea>
+              </div>
+              <div class="epub-cover-wrap">
+                <label class="btn btn-secondary" style="cursor:pointer;align-self:center">
+                  🖼️ Couverture
+                  <input type="file" accept="image/*" style="display:none" onchange="const r=new FileReader();r.onload=e=>{const img=document.getElementById('epub-cover-preview');img.src=e.target.result;img.style.display='block'};r.readAsDataURL(this.files[0])">
+                </label>
+                <img id="epub-cover-preview" alt="Couverture" style="display:none;width:60px;height:84px;object-fit:cover;border-radius:4px;border:1px solid var(--gray-200)">
+              </div>
+            </div>
+
+            <!-- Actions avancées -->
+            <div class="manuscrit-actions-grid" style="margin-top:16px">
+              <button class="btn btn-secondary" onclick="exportEPUB()">📥 Exporter EPUB</button>
+              <button class="btn btn-secondary" onclick="exportPDF()">🖨️ Exporter PDF</button>
+              <button class="btn btn-secondary" onclick="openEbookPreview()">👁️ Aperçu liseuse</button>
+              <button class="btn btn-secondary" onclick="validateEPUB()">✅ Valider EPUB</button>
+              <button class="btn btn-secondary" onclick="openPublicationChecklist()">📋 Checklist pub.</button>
+              <button class="btn btn-secondary" onclick="openPresentationMode()">🎭 Présentation</button>
+              <button class="btn btn-secondary" onclick="analyserProse()">📊 Stats prose</button>
+              <button class="btn btn-secondary" onclick="analyserCoherence()">🔍 Incohérences</button>
+              <button class="btn btn-secondary" onclick="runSpellcheck()">🔤 Orthographe</button>
+              <button class="btn btn-secondary" onclick="openPaletteGenerator()">🎨 Palettes</button>
+            </div>
+
+            <!-- Stats manuscrit -->
+            <div id="manuscript-global-stats"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Playlists -->
+      <section id="section-playlists" class="content-section hidden">
+        <div class="section-header">
+          <h2>Playlists</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" onclick="openImportMusicModal()">🎵 Bibliothèque</button>
+            <button class="btn btn-primary" onclick="openPlaylistModal()">+ Ajouter</button>
+          </div>
+        </div>
+        <div id="playlists-grid" class="cards-grid"></div>
+        <div id="no-playlists" class="no-items hidden">
+          <div class="no-icon">🎧</div>
+          <p>Aucune playlist pour l'instant.</p>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="openPlaylistModal()">+ Créer une playlist</button>
+        </div>
+      </section>
+      
+      <!-- Relations -->
+      <section id="section-relations" class="content-section hidden">
+        <div class="section-header" style="display:flex;align-items:center;gap:10px">
+          <h2>Relations</h2>
+          <button class="btn btn-primary" onclick="openRelationModal()">+ Nouvelle relation</button>
+          <div style="margin-left:auto">
+            <button class="btn btn-secondary btn-sm" id="relations-toggle-graph">Graphe</button>
+            <button class="btn btn-secondary btn-sm" id="relations-toggle-list">Liste</button>
+            <button class="btn btn-secondary btn-sm" id="relations-toggle-matrix">Matrice</button>
+          </div>
+        </div>
+        <div id="relations-controls" style="margin-bottom:12px;display:flex;gap:8px">
+          <select id="relations-filter" class="form-control" style="width:180px">
+            <option value="">Tous types</option>
+            <option value="Amour/Romance">Amour/Romance</option>
+            <option value="Amitié">Amitié</option>
+            <option value="Famille">Famille</option>
+            <option value="Conflit/Ennemis">Conflit/Ennemis</option>
+            <option value="Professionnel">Professionnel</option>
+            <option value="Mentor/Élève">Mentor/Élève</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+        <div id="relations-graph" style="width:100%;height:400px;display:none;"></div>
+        <div id="relations-list" style="display:none;overflow:auto;"></div>
+        <div id="no-relations" class="no-items hidden">
+          <div class="no-icon">🔗</div>
+          <p>Aucune relation pour l'instant.</p>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="openRelationModal()">+ Créer une relation</button>
+        </div>
+      </section>
+
+      <!-- Timeline -->
+      <section id="section-timeline" class="content-section hidden">
+        <div class="section-header">
+          <h2>Timeline</h2>
+          <button class="btn btn-primary" onclick="openEventModal()">+ Ajouter événement</button>
+        </div>
+        <div id="timeline-filters" class="form-row" style="gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <select id="timeline-filter-type" class="form-control" onchange="renderTimeline()">
+            <option value="">Tous types</option>
+            <option value="Rencontre">Rencontre</option>
+            <option value="Naissance">Naissance / Mort</option>
+            <option value="Tournant">Tournant narratif</option>
+            <option value="Découverte">Découverte</option>
+            <option value="Conflit">Conflit</option>
+            <option value="Résolution">Résolution</option>
+            <option value="Autre">Autre</option>
+          </select>
+          <select id="timeline-zoom" class="form-control" onchange="renderTimeline()">
+            <option value="annee">Année</option>
+            <option value="mois">Mois</option>
+            <option value="jour">Jour</option>
+          </select>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label><input type="checkbox" id="filter-has-personnage" onchange="renderTimeline()"> Personnages</label>
+            <label><input type="checkbox" id="filter-has-lieu" onchange="renderTimeline()"> Lieux</label>
+            <label><input type="checkbox" id="filter-has-chapitre" onchange="renderTimeline()"> Chapitres</label>
+          </div>
+          <input type="text" id="timeline-filter-personnage" class="form-control" placeholder="Filtrer par nom" oninput="debouncedRenderTimeline()">
+        </div>
+        <div id="timeline-list"></div>
+      </section>
+
+      <!-- Notes -->
+      <section id="section-notes" class="content-section hidden">
+        <div class="section-header">
+          <h2>Notes</h2>
+          <button class="btn btn-primary" onclick="openNoteModal()">+ Ajouter</button>
+        </div>
+        <input type="text" id="notes-search" class="form-control" placeholder="Rechercher dans les notes..." oninput="debouncedRenderNotes()" style="margin-bottom:12px;">
+        <div id="notes-list"></div>
+      </section>
+
+      <!-- Paramètres -->
+      <section id="section-parametres" class="content-section hidden">
+        <div class="section-header">
+          <h2>Paramètres</h2>
+        </div>
+        <div class="settings-container">
+          <div class="settings-card">
+            <h3>Informations du projet</h3>
+            <div class="form-group">
+              <label for="settings-project-name">Nom du projet</label>
+              <input type="text" id="settings-project-name" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="settings-project-desc">Description</label>
+              <textarea id="settings-project-desc" class="form-control" rows="3"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="saveProjectSettings()">Enregistrer</button>
+          </div>
+          <div class="settings-card">
+            <h3>Apparence</h3>
+            <div class="form-group">
+              <label><strong>Mode</strong></label>
+              <label>
+                <input type="radio" name="appearance" value="light"> Mode clair
+              </label><br>
+              <label>
+                <input type="radio" name="appearance" value="dark"> Mode sombre
+              </label><br>
+              <label>
+                <input type="radio" name="appearance" value="auto" checked> Auto (système)
+              </label>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+              <label><strong>Couleur d'accent</strong></label>
+              <input type="color" id="appearance-accent" class="form-control" style="height:36px;" onchange="saveAppearanceSettings()">
+              <div id="accent-presets" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"></div>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+              <label><strong>Densité</strong></label>
+              <label><input type="radio" name="density" value="compact" onchange="saveAppearanceSettings()"> Compact</label><br>
+              <label><input type="radio" name="density" value="comfortable" checked onchange="saveAppearanceSettings()"> Confortable</label><br>
+              <label><input type="radio" name="density" value="spacious" onchange="saveAppearanceSettings()"> Spacieux</label>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+              <label><strong>Taille police</strong></label>
+              <label><input type="radio" name="fontSize" value="sm" onchange="saveAppearanceSettings()"> Petite</label><br>
+              <label><input type="radio" name="fontSize" value="md" checked onchange="saveAppearanceSettings()"> Normale</label><br>
+              <label><input type="radio" name="fontSize" value="lg" onchange="saveAppearanceSettings()"> Grande</label>
+            </div>
+          </div>
+          <div class="settings-card">
+            <h3>Export / Import</h3>
+            <div class="settings-actions">
+              <button class="btn btn-secondary" onclick="exportProject()">⬇ JSON</button>
+              <button class="btn btn-secondary" onclick="exportMarkdown()">⬇ Markdown</button>
+              <button class="btn btn-secondary" onclick="exportCsv('personnages')">⬇ CSV (Persos)</button>
+              <label class="btn btn-secondary" style="cursor:pointer">
+                ⬆ Importer
+                <input type="file" id="import-file" accept=".json" onchange="importProject(event)" style="display:none">
+              </label>
+            </div>
+            <p class="settings-hint">L'import crée un nouveau projet distinct. Vos données existantes ne sont pas modifiées.</p>
+          </div>
+          <div class="settings-card">
+            <h3>Backup</h3>
+            <div class="form-group">
+              <label><input type="checkbox" id="settings-auto-backup"> Backup automatique hebdomadaire</label>
+            </div>
+            <div id="backup-status" class="settings-hint" style="margin-top:8px;font-size:13px;color:var(--gray-600)"></div>
+            <div style="margin-top:12px">
+              <button class="btn btn-secondary" onclick="openBackupManager()">📦 Gérer les sauvegardes</button>
+              <button class="btn btn-secondary" style="margin-left:8px" onclick="createAdvancedBackup(state.currentProjectId).then(()=>showToast('Sauvegarde créée','success'))">💾 Sauvegarder maintenant</button>
+            </div>
+          </div>
+          <div class="settings-card">
+            <h3>Thèmes saisonniers</h3>
+            <div class="form-group">
+              <label><input type="checkbox" id="settings-seasonal" onchange="toggleSeasonalTheme(this.checked, true)"> Activer le thème saisonnier automatique</label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="applySeasonalTheme('printemps')">🌸 Printemps</button>
+              <button class="btn btn-secondary btn-sm" onclick="applySeasonalTheme('ete')">☀️ Été</button>
+              <button class="btn btn-secondary btn-sm" onclick="applySeasonalTheme('automne')">🍂 Automne</button>
+              <button class="btn btn-secondary btn-sm" onclick="applySeasonalTheme('hiver')">❄️ Hiver</button>
+              <button class="btn btn-ghost btn-sm" onclick="removeSeasonalTheme()">✕ Désactiver</button>
+            </div>
+          </div>
+          <!-- Sync card -->
+          <div class="settings-card">
+            <h3>☁️ Synchronisation multi-appareils</h3>
+            <p class="settings-hint" style="margin-bottom:12px">Accède à tes données depuis ton téléphone, ta tablette ou ton PC grâce à un code de sync.</p>
+            <div id="sync-status-bar" style="margin-bottom:12px;padding:8px 12px;border-radius:6px;font-size:13px;background:var(--gray-100);color:var(--gray-600)">
+              🔴 Synchronisation non configurée
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+              <button class="btn btn-primary btn-sm" onclick="syncCreate()">✨ Créer un code</button>
+              <button class="btn btn-secondary btn-sm" onclick="syncPush()" id="btn-sync-push" disabled>⬆️ Envoyer</button>
+              <button class="btn btn-secondary btn-sm" onclick="syncPull()" id="btn-sync-pull" disabled>⬇️ Récupérer</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="sync-code-input" class="form-control" placeholder="Coller un code existant…" style="font-family:monospace;font-size:13px;flex:1">
+              <button class="btn btn-secondary btn-sm" onclick="syncJoin()">Rejoindre</button>
+            </div>
+            <div id="sync-code-display" style="display:none;margin-top:12px;padding:10px 12px;background:var(--primary-light);border-radius:6px">
+              <div style="font-size:11px;color:var(--primary-text);font-weight:600;margin-bottom:4px">TON CODE DE SYNC</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <code id="sync-code-value" style="font-size:15px;letter-spacing:2px;color:var(--primary-dark);flex:1"></code>
+                <button class="btn btn-ghost btn-sm" onclick="syncCopyCode()">📋 Copier</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card danger-zone">
+            <h3>Zone de danger</h3>
+            <p class="settings-hint" style="margin-bottom:16px">Cette action est irréversible et supprime toutes les données du projet.</p>
+            <button class="btn btn-danger" onclick="confirmDeleteCurrentProject()">Supprimer ce projet</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Citations -->
+      <section id="section-citations" class="content-section hidden">
+        <div class="section-header">
+          <h2>Citations</h2>
+          <button class="btn btn-primary" onclick="openCitationModal()">+ Nouvelle citation</button>
+        </div>
+        <div class="cit-filters">
+          <select id="cit-filter-perso" class="form-control" onchange="renderCitations()" style="width:180px">
+            <option value="">Tous les personnages</option>
+          </select>
+          <select id="cit-filter-theme" class="form-control" onchange="renderCitations()" style="width:160px">
+            <option value="">Tous les thèmes</option>
+            <option>Amour</option><option>Peur</option><option>Colère</option><option>Espoir</option>
+            <option>Tristesse</option><option>Humour</option><option>Courage</option><option>Trahison</option>
+            <option>Redemption</option><option>Autre</option>
+          </select>
+          <input type="text" id="cit-search" class="form-control" placeholder="🔍 Rechercher…" oninput="renderCitations()" style="flex:1;min-width:160px">
+        </div>
+        <div id="citations-list"></div>
+      </section>
+
+      <!-- Journal -->
+      <section id="section-journal" class="content-section hidden">
+        <div class="section-header">
+          <h2>Journal d'écriture</h2>
+          <button class="btn btn-primary" onclick="openJournalModal()">+ Nouvelle entrée</button>
+        </div>
+        <div id="journal-stats" class="journal-stats"></div>
+        <div class="journal-filters">
+          <select id="journal-filter-cat" class="form-control" onchange="renderJournal()">
+            <option value="">Toutes catégories</option>
+            <option value="idee">💡 Idée</option>
+            <option value="session">✍️ Session écriture</option>
+            <option value="objectif">🎯 Objectif</option>
+            <option value="blocage">🔴 Blocage</option>
+            <option value="resolution">✅ Résolution</option>
+            <option value="bilan">📊 Bilan</option>
+          </select>
+          <input type="text" id="journal-search" class="form-control" placeholder="🔍 Rechercher…" oninput="renderJournal()" style="flex:1">
+        </div>
+        <div id="journal-list"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== BIBLIOTHÈQUE PAGE ===================== -->
+<div id="bibliotheque-page" class="page hidden">
+  <div class="biblio-header">
+    <div class="biblio-header-left">
+      <button class="btn btn-ghost" onclick="closeBibliotheque()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Retour
+      </button>
+      <div>
+        <h1 class="app-title" style="color:var(--gray-800);font-size:20px">Bibliothèque</h1>
+        <p class="app-subtitle">Ressources réutilisables dans tous vos projets</p>
+      </div>
+    </div>
+    <div id="biblio-actions-scenes" style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="openTemplateModal()">📋 Modèles</button>
+      <button class="btn btn-secondary" onclick="openSnippetModal()">✂️ Snippets</button>
+      <button class="btn btn-primary" onclick="openGlobalSceneModal()">+ Nouvelle scène globale</button>
+    </div>
+    <div id="biblio-actions-music" style="display:none;gap:8px">
+      <button class="btn btn-primary" onclick="openGlobalMusicModal()">+ Ajouter une musique</button>
+    </div>
+    <div id="biblio-actions-sections" style="display:none;gap:8px">
+      <button class="btn btn-primary" onclick="openGlobalSectionModal()">+ Nouvelle section</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="biblio-tabs">
+    <button class="biblio-tab active" data-tab="scenes" onclick="switchBiblioTab('scenes')">🎬 Scènes</button>
+    <button class="biblio-tab" data-tab="music" onclick="switchBiblioTab('music')">🎵 Musique</button>
+    <button class="biblio-tab" data-tab="sections" onclick="switchBiblioTab('sections')">📁 Sections</button>
+  </div>
+
+  <!-- Scenes tab content -->
+  <div id="biblio-tab-scenes" class="biblio-tab-content">
+    <div class="biblio-toolbar">
+      <select id="biblio-filter-cat" class="form-control biblio-select" onchange="renderBibliotheque()">
+        <option value="">Toutes les catégories</option>
+        <option value="Romance">Romance</option>
+        <option value="Tension">Tension</option>
+        <option value="Action">Action</option>
+        <option value="Révélation">Révélation</option>
+        <option value="Autre">Autre</option>
+      </select>
+      <input type="text" id="biblio-search" class="form-control biblio-search"
+             placeholder="Rechercher par titre ou tag..." oninput="renderBibliotheque()">
+    </div>
+    <div class="biblio-content">
+      <div id="biblio-grid" class="biblio-grid"></div>
+      <div id="no-biblio" class="no-items hidden">
+        <div class="no-icon">📝</div>
+        <p>Aucune scène dans la bibliothèque.</p>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalSceneModal()">+ Créer une scène globale</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Music tab content -->
+  <div id="biblio-tab-music" class="biblio-tab-content" style="display:none">
+    <div class="biblio-toolbar">
+      <select id="biblio-music-filter-mood" class="form-control biblio-select" onchange="renderMusicLibrary()">
+        <option value="">Tous les moods</option>
+        <option value="Épique">Épique</option>
+        <option value="Mélancolique">Mélancolique</option>
+        <option value="Joyeux">Joyeux</option>
+        <option value="Sombre">Sombre</option>
+        <option value="Romantique">Romantique</option>
+        <option value="Tension">Tension</option>
+        <option value="Calme">Calme</option>
+        <option value="Autre">Autre</option>
+      </select>
+      <input type="text" id="biblio-music-search" class="form-control biblio-search"
+             placeholder="Rechercher par titre, artiste ou tag..." oninput="renderMusicLibrary()">
+    </div>
+    <div class="biblio-content">
+      <div id="biblio-music-grid" class="biblio-grid"></div>
+      <div id="no-biblio-music" class="no-items hidden">
+        <div class="no-icon">🎵</div>
+        <p>Aucune musique dans la bibliothèque.</p>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalMusicModal()">+ Ajouter une musique</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sections tab content -->
+  <div id="biblio-tab-sections" class="biblio-tab-content" style="display:none">
+    <div class="biblio-toolbar">
+      <select id="biblio-sections-filter-display" class="form-control biblio-select" onchange="renderGlobalSectionsLibrary()">
+        <option value="">Tous les types d'affichage</option>
+        <option value="cards">Galerie</option>
+        <option value="liste">Liste</option>
+        <option value="tableau">Tableau</option>
+      </select>
+      <input type="text" id="biblio-sections-search" class="form-control biblio-search"
+             placeholder="Rechercher par nom ou tag..." oninput="renderGlobalSectionsLibrary()">
+    </div>
+    <div class="biblio-content">
+      <div id="biblio-sections-grid" class="biblio-grid"></div>
+      <div id="no-biblio-sections" class="no-items hidden">
+        <div class="no-icon">📁</div>
+        <p>Aucune section dans la bibliothèque.</p>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalSectionModal()">+ Créer une section</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nouveau projet -->
+<div id="modal-new-project" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nouveau projet</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-project')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="new-project-name">Nom du projet *</label>
+        <input type="text" id="new-project-name" class="form-control" placeholder="Mon roman fantastique...">
+      </div>
+      <div class="form-group">
+        <label for="new-project-desc">Description</label>
+        <textarea id="new-project-desc" class="form-control" rows="3" placeholder="Une brève description de votre histoire..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-project')">Annuler</button>
+      <button class="btn btn-primary" onclick="createProject()">Créer le projet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Relation -->
+<div id="modal-relation" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-relation-title">Nouvelle relation</h3>
+      <button class="modal-close" onclick="closeModal('modal-relation')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rel-personA">Personnage A *</label>
+          <select id="rel-personA" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label for="rel-personB">Personnage B *</label>
+          <select id="rel-personB" class="form-control"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rel-type">Type de relation</label>
+          <select id="rel-type" class="form-control">
+            <option>Amour/Romance</option>
+            <option>Amitié</option>
+            <option>Famille</option>
+            <option>Conflit/Ennemis</option>
+            <option>Professionnel</option>
+            <option>Mentor/Élève</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="rel-intensite">Intensité</label>
+          <input type="range" id="rel-intensite" class="form-control" min="1" max="5" value="3">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="rel-description">Description</label>
+        <textarea id="rel-description" class="form-control" rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="rel-evolution">Évolution</label>
+        <textarea id="rel-evolution" class="form-control" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="rel-statut">Statut</label>
+        <select id="rel-statut" class="form-control">
+          <option>Actuelle</option>
+          <option>Passée</option>
+          <option>Future</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="rel-notes">Notes</label>
+        <textarea id="rel-notes" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-relation')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveRelation()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Personnage -->
+<div id="modal-character" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-character-title">Nouveau personnage</h3>
+      <button class="modal-close" onclick="closeModal('modal-character')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="char-prenom">Prénom *</label>
+          <input type="text" id="char-prenom" class="form-control" placeholder="Alice">
+        </div>
+        <div class="form-group">
+          <label for="char-nom">Nom</label>
+          <input type="text" id="char-nom" class="form-control" placeholder="Dupont">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="char-age">Âge</label>
+          <input type="number" id="char-age" class="form-control" placeholder="28" min="0">
+        </div>
+        <div class="form-group">
+          <label for="char-role">Rôle</label>
+          <select id="char-role" class="form-control">
+            <option value="Protagoniste">Protagoniste</option>
+            <option value="Love Interest">Love Interest</option>
+            <option value="Antagoniste">Antagoniste</option>
+            <option value="Secondaire">Secondaire</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="char-notes">Notes</label>
+        <textarea id="char-notes" class="form-control" rows="4" placeholder="Traits de personnalité, backstory, arc narratif..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Photo</label>
+        <div id="char-photo-preview" style="margin-bottom:8px"></div>
+        <input type="file" id="char-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'char-photo-preview', 'char-photo-remove')">
+        <button type="button" class="btn btn-ghost" id="char-photo-remove" style="display:none;margin-top:8px" onclick="removeCharacterPhoto()">Supprimer la photo</button>
+      </div>
+
+      <details class="accordion" open>
+        <summary>Apparence</summary>
+        <div class="form-group">
+          <div class="form-row">
+            <div class="form-group"><label for="char-yeux">Yeux</label><input id="char-yeux" class="form-control" type="text"></div>
+            <div class="form-group"><label for="char-cheveux">Cheveux</label><input id="char-cheveux" class="form-control" type="text"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="char-taille">Taille</label><input id="char-taille" class="form-control" type="text"></div>
+            <div class="form-group"><label for="char-style">Style vestimentaire</label><input id="char-style" class="form-control" type="text"></div>
+          </div>
+          <div class="form-group"><label for="char-detail">Détail marquant</label><input id="char-detail" class="form-control" type="text"></div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>Psychologie</summary>
+        <div class="form-group">
+          <div class="form-row">
+            <div class="form-group"><label for="char-trait-1">Trait 1</label><input id="char-trait-1" class="form-control" type="text"></div>
+            <div class="form-group"><label for="char-trait-2">Trait 2</label><input id="char-trait-2" class="form-control" type="text"></div>
+            <div class="form-group"><label for="char-trait-3">Trait 3</label><input id="char-trait-3" class="form-control" type="text"></div>
+          </div>
+          <div class="form-group"><label for="char-blessure">Blessure principale</label><textarea id="char-blessure" class="form-control" rows="2"></textarea></div>
+          <div class="form-row">
+            <div class="form-group"><label for="char-peur">Peur principale</label><input id="char-peur" class="form-control" type="text"></div>
+            <div class="form-group"><label for="char-desir">Désir profond</label><input id="char-desir" class="form-control" type="text"></div>
+          </div>
+          <div class="form-group"><label for="char-arc">Arc d'évolution</label><textarea id="char-arc" class="form-control" rows="2"></textarea></div>
+        </div>
+      </details>
+
+      <div class="form-group">
+        <label for="char-backstory">Backstory (texte riche)</label>
+        <div id="char-backstory-editor" class="editor-quill-wrap" style="height:180px; background:#fff;"></div>
+        <textarea id="char-backstory" class="form-control" rows="6" placeholder="Backstory..." style="display:none;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-character')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCharacter()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lieu -->
+<div id="modal-location" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-location-title">Nouveau lieu</h3>
+      <button class="modal-close" onclick="closeModal('modal-location')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="loc-nom">Nom *</label>
+          <input type="text" id="loc-nom" class="form-control" placeholder="Café de la Paix">
+        </div>
+        <div class="form-group">
+          <label for="loc-ville">Ville</label>
+          <input type="text" id="loc-ville" class="form-control" placeholder="Paris">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="loc-type">Type</label>
+        <select id="loc-type" class="form-control">
+          <option value="Résidence">Résidence</option>
+          <option value="Commerce">Commerce</option>
+          <option value="Extérieur">Extérieur</option>
+          <option value="Nature">Nature</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="loc-notes">Notes</label>
+        <textarea id="loc-notes" class="form-control" rows="4" placeholder="Atmosphère, détails importants..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Photo</label>
+        <div id="loc-photo-preview" style="margin-bottom:8px"></div>
+        <input type="file" id="loc-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'loc-photo-preview', 'loc-photo-remove')">
+        <button type="button" class="btn btn-ghost" id="loc-photo-remove" style="display:none;margin-top:8px" onclick="removeLocationPhoto()">Supprimer la photo</button>
+      </div>
+
+      <details class="accordion" open>
+        <summary>Description</summary>
+        <div class="form-group"><label for="loc-desc-visuelle">Description visuelle</label><textarea id="loc-desc-visuelle" class="form-control" rows="3"></textarea></div>
+        <div class="form-group"><label for="loc-ambiance">Ambiance générale</label><input id="loc-ambiance" class="form-control" type="text"></div>
+      </details>
+
+      <details class="accordion">
+        <summary>Détails sensoriels</summary>
+        <div class="form-row">
+          <div class="form-group"><label for="loc-odeurs">Odeurs</label><input id="loc-odeurs" class="form-control" type="text"></div>
+          <div class="form-group"><label for="loc-sons">Sons</label><input id="loc-sons" class="form-control" type="text"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="loc-temperature">Température</label><input id="loc-temperature" class="form-control" type="text"></div>
+          <div class="form-group"><label for="loc-textures">Textures</label><input id="loc-textures" class="form-control" type="text"></div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>Rôle dans l'histoire</summary>
+        <div class="form-group"><label for="loc-importance">Importance du lieu</label><textarea id="loc-importance" class="form-control" rows="2"></textarea></div>
+        <div class="form-group"><label for="loc-scenes">Scènes clés</label><textarea id="loc-scenes" class="form-control" rows="2"></textarea></div>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-location')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveLocation()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chapitre -->
+<div id="modal-chapter" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-chapter-title">Nouveau chapitre</h3>
+      <button class="modal-close" onclick="closeModal('modal-chapter')">✕</button>
+    </div>
+    <div class="modal-body">
+      <details class="accordion" open>
+        <summary>Identité</summary>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="chap-numero">Numéro *</label>
+            <input type="number" id="chap-numero" class="form-control" placeholder="1" min="1">
+          </div>
+          <div class="form-group">
+            <label for="chap-titre">Titre *</label>
+            <input type="text" id="chap-titre" class="form-control" placeholder="Le commencement...">
+          </div>
+        </div>
+      </details>
+      <details class="accordion">
+        <summary>Métadonnées</summary>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="chap-pov">POV / Personnage</label>
+            <select id="chap-pov" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label for="chap-statut">Statut</label>
+            <select id="chap-statut" class="form-control">
+              <option value="Brouillon">Brouillon</option>
+              <option value="En cours">En cours</option>
+              <option value="Terminé">Terminé</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="chap-resume">Résumé</label>
+          <textarea id="chap-resume" class="form-control" rows="3" placeholder="Résumé ou synopsis court..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="chap-word-estimate">Nombre de mots estimé</label>
+          <input type="number" id="chap-word-estimate" class="form-control" min="0">
+        </div>
+        <div class="form-row" style="margin-top:8px">
+          <div class="form-group">
+            <label for="chap-heure-debut">Heure début (in-story)</label>
+            <input type="time" id="chap-heure-debut" class="form-control" onchange="updateChapterDuration()">
+          </div>
+          <div class="form-group">
+            <label for="chap-heure-fin">Heure fin (in-story)</label>
+            <input type="time" id="chap-heure-fin" class="form-control" onchange="updateChapterDuration()">
+          </div>
+        </div>
+        <div id="chap-duree-display" style="font-size:12px;color:var(--gray-500);margin-top:4px"></div>
+      </details>
+      <div class="form-group">
+        <label for="chap-notes">Notes / Résumé</label>
+        <textarea id="chap-notes" class="form-control" rows="4" placeholder="Points clés, scènes importantes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-chapter')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveChapter()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export ebook modal -->
+<div id="modal-export-ebook" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Exporter ebook</h3>
+      <button class="modal-close" onclick="closeModal('modal-export-ebook')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="export-form">
+        <div class="form-group">
+          <label>Format</label><br>
+          <label><input type="radio" name="export-format" value="epub" checked> EPUB</label>
+          <label><input type="radio" name="export-format" value="pdf"> PDF</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="export-title">Titre du livre *</label>
+            <input type="text" id="export-title" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="export-author">Auteur *</label>
+            <input type="text" id="export-author" class="form-control" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="export-series">Série</label>
+            <input type="text" id="export-series" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="export-series-index">#</label>
+            <input type="number" id="export-series-index" class="form-control" min="1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="export-genre">Genre</label>
+            <input type="text" id="export-genre" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="export-language">Langue</label>
+            <select id="export-language" class="form-control">
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="export-isbn">ISBN</label>
+            <input type="text" id="export-isbn" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="export-date">Date de publication</label>
+            <input type="date" id="export-date" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="export-description">Description / 4e de couverture</label>
+          <textarea id="export-description" class="form-control" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="export-cover">Couverture (image)</label>
+          <input type="file" id="export-cover" accept="image/*">
+        </div>
+        <div class="form-group">
+          <label>Options de formatage</label><br>
+          <label><input type="checkbox" id="opt-toc" checked> Table des matières</label><br>
+          <label><input type="checkbox" id="opt-title-page" checked> Page titre</label><br>
+          <label><input type="checkbox" id="opt-copyright-page" checked> Page copyright</label><br>
+          <label><input type="checkbox" id="opt-chapter-numbers" checked> Numéros chapitres</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="opt-font">Police</label>
+            <select id="opt-font" class="form-control">
+              <option>Garamond</option>
+              <option>Georgia</option>
+              <option>Times New Roman</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="opt-font-size">Taille</label>
+            <input type="number" id="opt-font-size" class="form-control" value="12" min="6">
+          </div>
+          <div class="form-group">
+            <label for="opt-line-height">Interligne</label>
+            <input type="number" id="opt-line-height" class="form-control" value="1.5" step="0.1">
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-export-ebook')">Annuler</button>
+      <button class="btn btn-primary" onclick="generateEbook()">Générer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3 id="confirm-title">Confirmer la suppression</h3>
+      <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-message" style="color:var(--gray-600);line-height:1.6"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-confirm')">Annuler</button>
+      <button class="btn btn-danger" id="confirm-btn">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scène globale (bibliothèque) -->
+<div id="modal-global-scene" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-global-scene-title">Nouvelle scène globale</h3>
+      <button class="modal-close" onclick="closeModal('modal-global-scene')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Titre *</label>
+          <input type="text" id="gs-titre" class="form-control" placeholder="Première rencontre dans le café...">
+        </div>
+        <div class="form-group">
+          <label>Catégorie</label>
+          <select id="gs-categorie" class="form-control">
+            <option value="Romance">Romance</option>
+            <option value="Tension">Tension</option>
+            <option value="Action">Action</option>
+            <option value="Révélation">Révélation</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tags (séparés par virgules)</label>
+          <input type="text" id="gs-tags" class="form-control" placeholder="rencontre, café, tension">
+        </div>
+        <div class="form-group">
+          <label>Variables (séparées par virgules)</label>
+          <input type="text" id="gs-variables" class="form-control" placeholder="[PERSO_1], [PERSO_2], [LIEU]">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Contenu de la scène *</label>
+        <p class="field-hint">Insérez vos variables dans le texte : <code>[PERSO_1]</code>, <code>[LIEU]</code>…</p>
+        <textarea id="gs-contenu" class="form-control scene-textarea" rows="10"
+                  placeholder="[PERSO_1] poussa la porte de [LIEU]…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Description d'usage</label>
+        <textarea id="gs-description" class="form-control" rows="2"
+                  placeholder="Comment utiliser cette scène, dans quel contexte narratif..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-global-scene')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveGlobalScene()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scène locale (projet) -->
+<div id="modal-local-scene" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-local-scene-title">Nouvelle scène</h3>
+      <button class="modal-close" onclick="closeModal('modal-local-scene')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Titre *</label>
+          <input type="text" id="ls-titre" class="form-control" placeholder="Titre de la scène...">
+        </div>
+        <div class="form-group">
+          <label>Statut</label>
+          <select id="ls-statut" class="form-control">
+            <option value="Brouillon">Brouillon</option>
+            <option value="En cours">En cours</option>
+            <option value="Terminé">Terminé</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>POV (Personnage)</label>
+          <select id="ls-pov" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Assignée au chapitre</label>
+          <select id="ls-chapitre" class="form-control"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tags</label>
+        <input type="text" id="ls-tags" class="form-control" placeholder="action, dialogue, révélation...">
+      </div>
+      <div class="form-group">
+        <label>Contenu</label>
+        <textarea id="ls-contenu" class="form-control scene-textarea" rows="10" placeholder="Rédigez votre scène ici..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Notes internes</label>
+        <textarea id="ls-notes" class="form-control" rows="2" placeholder="Rappels, TODO, continuité..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-local-scene')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveLocalScene()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import depuis bibliothèque -->
+<div id="modal-import-scene" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Importer depuis la bibliothèque</h3>
+      <button class="modal-close" onclick="closeModal('modal-import-scene')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Scène globale *</label>
+        <select id="import-scene-select" class="form-control" onchange="onImportSceneSelect()">
+          <option value="">— Choisir une scène —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Type d'import</label>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="import-type" value="copie" checked>
+            <span><strong>Copie indépendante</strong> — modifiable librement</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="import-type" value="reference">
+            <span><strong>Référence liée</strong> — badge [Globale] affiché</span>
+          </label>
+        </div>
+      </div>
+      <div id="import-variables-section" class="hidden">
+        <div class="import-vars-title">Remplacer les variables</div>
+        <div id="import-variables-fields"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-import-scene')">Annuler</button>
+      <button class="btn btn-primary" onclick="importGlobalScene()">Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global Music modal -->
+<div id="modal-global-music" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-global-music-title">Nouvelle musique</h3>
+      <button class="modal-close" onclick="closeModal('modal-global-music')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Titre *</label>
+        <input type="text" id="gm-titre" class="form-control" placeholder="Titre du morceau...">
+      </div>
+      <div class="form-group">
+        <label>Artiste</label>
+        <input type="text" id="gm-artiste" class="form-control" placeholder="Nom de l'artiste...">
+      </div>
+      <div class="form-group">
+        <label>Album</label>
+        <input type="text" id="gm-album" class="form-control" placeholder="Nom de l'album...">
+      </div>
+      <div class="form-group">
+        <label>Lien (Spotify, YouTube, etc.)</label>
+        <input type="text" id="gm-url" class="form-control" placeholder="https://open.spotify.com/track/...">
+      </div>
+      <div class="form-group">
+        <label>Fichier audio <small style="color:var(--gray-400)">(MP3, WAV — stocké localement)</small></label>
+        <input type="file" id="gm-file" accept="audio/*">
+        <div id="gm-file-info" style="margin-top:4px;font-size:13px;color:var(--gray-500)"></div>
+      </div>
+      <div class="form-group">
+        <label>Image de couverture</label>
+        <div id="gm-image-preview" style="margin-bottom:8px;"></div>
+        <input type="file" id="gm-image" accept="image/*">
+      </div>
+      <div class="form-group">
+        <label>Mood / Ambiance</label>
+        <select id="gm-mood" class="form-control">
+          <option value="">— Choisir —</option>
+          <option value="Épique">Épique</option>
+          <option value="Mélancolique">Mélancolique</option>
+          <option value="Joyeux">Joyeux</option>
+          <option value="Sombre">Sombre</option>
+          <option value="Romantique">Romantique</option>
+          <option value="Tension">Tension</option>
+          <option value="Calme">Calme</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tags</label>
+        <input type="text" id="gm-tags" class="form-control" placeholder="ex: combat, voyage, nuit">
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="gm-notes" class="form-control" rows="2" placeholder="Usage recommandé, contexte..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-global-music')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveGlobalMusic()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Music from Library modal -->
+<div id="modal-import-music" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Importer depuis la bibliothèque musicale</h3>
+      <button class="modal-close" onclick="closeModal('modal-import-music')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Filtrer par mood</label>
+        <select id="import-music-mood-filter" class="form-control" onchange="renderImportMusicList()">
+          <option value="">Tous</option>
+          <option value="Épique">Épique</option>
+          <option value="Mélancolique">Mélancolique</option>
+          <option value="Joyeux">Joyeux</option>
+          <option value="Sombre">Sombre</option>
+          <option value="Romantique">Romantique</option>
+          <option value="Tension">Tension</option>
+          <option value="Calme">Calme</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rechercher</label>
+        <input type="text" id="import-music-search" class="form-control" placeholder="Titre, artiste..." oninput="renderImportMusicList()">
+      </div>
+      <div id="import-music-list" class="import-music-list"></div>
+      <div id="import-music-empty" class="hidden" style="text-align:center;padding:20px;color:var(--gray-400)">
+        Aucune musique dans la bibliothèque.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-import-music')">Annuler</button>
+      <button class="btn btn-primary" onclick="importSelectedMusic()">Importer la sélection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global Section Template modal -->
+<div id="modal-global-section" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-gs-title">Nouvelle section (bibliothèque)</h3>
+      <button class="modal-close" onclick="closeModal('modal-global-section')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label for="gs-nom">Nom de la section *</label>
+          <input type="text" id="gs-nom" class="form-control" placeholder="Objets magiques, Créatures...">
+        </div>
+        <div class="form-group" style="flex:0 0 80px">
+          <label for="gs-icone">Icône</label>
+          <input type="text" id="gs-icone" class="form-control" style="text-align:center;font-size:18px" maxlength="2" value="📁">
+        </div>
+        <div class="form-group">
+          <label for="gs-affichage">Affichage</label>
+          <select id="gs-affichage" class="form-control">
+            <option value="cards">🖼 Galerie</option>
+            <option value="liste">≡ Liste</option>
+            <option value="tableau">⊞ Tableau</option>
+          </select>
+        </div>
+      </div>
+      <div class="cs-icon-grid" id="gs-icon-grid"></div>
+      <div class="form-group">
+        <label for="gs-description">Description</label>
+        <textarea id="gs-description" class="form-control" rows="2" placeholder="Description de la section..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="gs-tags">Tags (séparés par des virgules)</label>
+        <input type="text" id="gs-tags" class="form-control" placeholder="fantasy, objets, inventaire...">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Champs du formulaire</label>
+        <div id="gs-champs-list" class="cs-field-builder"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="gsAddField()">+ Ajouter un champ</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="flex:1">
+        <button id="gs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteGlobalSectionConfirm()">🗑 Supprimer</button>
+      </div>
+      <button class="btn btn-ghost" onclick="closeModal('modal-global-section')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveGlobalSection()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Section from Library modal -->
+<div id="modal-import-section" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Importer une section depuis la bibliothèque</h3>
+      <button class="modal-close" onclick="closeModal('modal-import-section')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Rechercher</label>
+        <input type="text" id="import-section-search" class="form-control" placeholder="Nom, tag..." oninput="renderImportSectionList()">
+      </div>
+      <div id="import-section-list" class="import-section-list"></div>
+      <div id="import-section-empty" class="hidden" style="text-align:center;padding:20px;color:var(--gray-400)">
+        Aucune section dans la bibliothèque.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-import-section')">Annuler</button>
+      <button class="btn btn-primary" onclick="importSelectedSections()">Importer la sélection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Playlist modal -->
+<div id="modal-playlist" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-playlist-title">Nouvelle playlist</h3>
+      <button class="modal-close" onclick="closeModal('modal-playlist')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nom *</label>
+        <input type="text" id="pl-nom" class="form-control" placeholder="Titre de la playlist...">
+      </div>
+      <div class="form-group">
+        <label>Lien Spotify</label>
+        <input type="text" id="pl-url" class="form-control" placeholder="https://open.spotify.com/playlist/...">
+      </div>
+      <div class="form-group">
+        <label>Image de la playlist</label>
+        <div id="pl-image-preview-container" style="margin-bottom:8px;"></div>
+        <input type="file" id="pl-image" accept="image/*">
+      </div>
+      <div class="form-group">
+        <label>Associée à</label>
+        <select id="pl-associated" class="form-control" multiple style="height:100px"></select>
+        <small class="field-hint">Maintenez Ctrl/Cmd pour sélectionner plusieurs</small>
+      </div>
+      <div class="form-group">
+        <label>Tags / Mood</label>
+        <input type="text" id="pl-tags" class="form-control" placeholder="ex: sombre, épique">
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="pl-notes" class="form-control" rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Titres <small style="color:var(--gray-400)">(optionnel)</small></label>
+        <div id="pl-tracks-list" class="pl-tracks-list"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="plAddTrack()">+ Ajouter un titre</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-playlist')">Annuler</button>
+      <button class="btn btn-primary" onclick="savePlaylist()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event modal -->
+<div id="modal-event" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-event-title">Nouvel événement</h3>
+      <button class="modal-close" onclick="closeModal('modal-event')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Date <small style="color:var(--gray-400)">(ex: 15 janvier 1920, Été 2018)</small></label>
+        <input type="text" id="ev-date" class="form-control" placeholder="15 janvier 1920">
+      </div>
+      <div class="form-group">
+        <label>Titre *</label>
+        <input type="text" id="ev-titre" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="ev-desc" class="form-control" rows="3"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="ev-type" class="form-control">
+            <option value="Rencontre">Rencontre 💫</option>
+            <option value="Naissance">Naissance 🍼</option>
+            <option value="Mort">Mort 🕊️</option>
+            <option value="Tournant">Tournant ⚡</option>
+            <option value="Découverte">Découverte 🔍</option>
+            <option value="Conflit">Conflit ⚔️</option>
+            <option value="Résolution">Résolution ✅</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Importance <span id="ev-importance-value">3</span>/5</label>
+          <input type="range" id="ev-importance" class="form-control" min="1" max="5" value="3" oninput="document.getElementById('ev-importance-value').textContent=this.value;">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Associé à</label>
+        <select id="ev-associated" class="form-control" multiple style="height:100px"></select>
+        <small class="field-hint">Perso/lieu/chapitre</small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-event')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveEvent()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note modal -->
+<div id="modal-note" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-note-title">Nouvelle note</h3>
+      <button class="modal-close" onclick="closeModal('modal-note')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Titre *</label>
+        <input type="text" id="note-title" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="note-type" class="form-control">
+          <option value="idea">💡 Idée</option>
+          <option value="task">☐ Tâche</option>
+          <option value="warning">⚠️ Attention</option>
+          <option value="quote">📖 Citation</option>
+          <option value="goal">🎯 Objectif</option>
+        </select>
+      </div>
+      <div id="note-task-area" class="form-group hidden">
+        <label>Checklist</label>
+        <div id="note-tasks-list" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="note-new-task" class="form-control" placeholder="Nouvelle tâche...">
+          <button class="btn btn-secondary" onclick="addNoteTaskInput()">Ajouter</button>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <label>Échéance&nbsp;: <input type="date" id="note-due" class="form-control" style="display:inline-block;width:auto;margin-left:8px"></label>
+          <label style="margin-left:12px"><input type="checkbox" id="note-remind"> Rappel</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Contenu</label>
+        <textarea id="note-content" class="form-control" rows="4" placeholder="Supportez le markdown : **gras**, *italique*, `code`"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Tags</label>
+        <input type="text" id="note-tags" class="form-control" placeholder="séparés par virgules">
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="note-pinned"> Épingler</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-note')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveNote()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Préview chapitre -->
+<div id="modal-preview-chapter" class="modal-overlay hidden">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3 id="preview-chapter-title">Préview du chapitre</h3>
+      <button class="modal-close" onclick="closeModal('modal-preview-chapter')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="preview-chapter-content" class="preview-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-preview-chapter')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Section Builder modal -->
+<div id="modal-custom-section" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-cs-title">Nouvelle section</h3>
+      <button class="modal-close" onclick="closeModal('modal-custom-section')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label for="cs-nom">Nom de la section *</label>
+          <input type="text" id="cs-nom" class="form-control" placeholder="Objets magiques, Secrets...">
+        </div>
+        <div class="form-group" style="flex:0 0 80px">
+          <label for="cs-icone">Icône</label>
+          <input type="text" id="cs-icone" class="form-control" style="text-align:center;font-size:18px" maxlength="2" value="📁">
+        </div>
+        <div class="form-group">
+          <label for="cs-affichage">Affichage</label>
+          <select id="cs-affichage" class="form-control">
+            <option value="cards">🖼 Galerie</option>
+            <option value="liste">≡ Liste</option>
+            <option value="tableau">⊞ Tableau</option>
+          </select>
+        </div>
+      </div>
+      <div class="cs-icon-grid" id="cs-icon-grid"></div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Champs du formulaire</label>
+        <div id="cs-champs-list" class="cs-field-builder"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="csAddField()">+ Ajouter un champ</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="flex:1">
+        <button id="cs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteCustomSectionConfirmFromModal()">🗑 Supprimer</button>
+      </div>
+      <button class="btn btn-ghost" onclick="closeModal('modal-custom-section')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCustomSection()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Item modal -->
+<div id="modal-custom-item" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-ci-title">Nouvel élément</h3>
+      <button class="modal-close" onclick="closeModal('modal-custom-item')">✕</button>
+    </div>
+    <div id="ci-form-body" class="modal-body">
+      <!-- Generated dynamically -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-custom-item')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCustomItem()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CHAPTER EDITOR PAGE ===================== -->
+<div id="chapter-editor-page" class="page hidden editor-page">
+
+  <!-- Fixed Header -->
+  <header class="editor-header">
+    <div class="editor-header-left">
+      <button class="btn btn-ghost" onclick="closeChapterEditor()" style="font-size:13px;gap:6px;flex-shrink:0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Retour
+      </button>
+      <button class="editor-nav-btn" id="ce-nav-prev" onclick="navigateChapterEditor(-1)" title="Chapitre précédent">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <input type="text" id="ce-title" class="editor-title-input" placeholder="Titre du chapitre…">
+      <button class="editor-nav-btn" id="ce-nav-next" onclick="navigateChapterEditor(1)" title="Chapitre suivant">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <div class="editor-header-right">
+      <div class="session-stats" id="ce-session-stats" style="display:none">
+        <div class="session-stat-item"><span class="session-stat-val" id="ce-session-time">0:00</span><span class="session-stat-label">session</span></div>
+        <div class="session-stat-item"><span class="session-stat-val" id="ce-session-words">+0</span><span class="session-stat-label">mots</span></div>
+      </div>
+      <span id="ce-wordcount" class="editor-wordcount">0 mot</span>
+      <span id="ce-autosave" class="editor-autosave">—</span>
+      <button class="btn btn-ghost" onclick="toggleTypoFormatting()" id="ce-btn-typo" style="font-size:12px" title="Formatage typographique">Typo</button>
+      <button class="btn btn-ghost" onclick="openFindReplace()" style="font-size:12px" title="Chercher/Remplacer (Ctrl+F)">🔍</button>
+      <button class="btn btn-ghost editor-focus-btn" id="ce-btn-focus" onclick="toggleFocusMode()" style="font-size:13px;gap:6px" title="Mode focus (F11)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        Focus
+      </button>
+      <button class="btn btn-primary" onclick="saveChapterEditor()" style="font-size:13px">Enregistrer</button>
+    </div>
+  </header>
+
+  <div class="editor-layout">
+
+    <!-- Sidebar -->
+    <aside class="editor-sidebar" id="ce-sidebar">
+      <div class="editor-sidebar-inner">
+
+        <!-- Metadata -->
+        <div class="editor-sidebar-section">
+          <h4>Métadonnées</h4>
+          <div class="editor-meta-group">
+            <div>
+              <label>Numéro</label>
+              <input type="number" id="ce-numero" class="form-control" min="1" placeholder="1">
+            </div>
+            <div>
+              <label>POV</label>
+              <select id="ce-pov" class="form-control"></select>
+            </div>
+            <div>
+              <label>Statut</label>
+              <select id="ce-statut" class="form-control">
+                <option value="Brouillon">Brouillon</option>
+                <option value="En cours">En cours</option>
+                <option value="À réviser">À réviser</option>
+                <option value="Terminé">Terminé</option>
+              </select>
+            </div>
+            <div>
+              <label>Tags</label>
+              <input type="text" id="ce-tags" class="form-control" placeholder="action, révélation…">
+            </div>
+            <div>
+              <label>Notes</label>
+              <textarea id="ce-notes" class="form-control" rows="4" placeholder="Rappels, intentions narratives…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-stats-divider"></div>
+
+        <!-- Stats -->
+        <div class="editor-stats-section">
+          <h4>Statistiques</h4>
+          <div class="editor-stat-row"><span>Mots</span><strong id="ce-stat-words">0</strong></div>
+          <div class="editor-stat-row"><span>Caractères</span><strong id="ce-stat-chars">0</strong></div>
+          <div class="editor-stat-row"><span>Paragraphes</span><strong id="ce-stat-paras">0</strong></div>
+          <div class="editor-stat-row"><span>Temps lecture</span><strong id="ce-stat-read">0 min</strong></div>
+          <div class="editor-goal-wrap">
+            <label>Objectif mots</label>
+            <div class="editor-goal-input-row">
+              <input type="number" id="ce-goal-input" placeholder="ex. 2000" min="0" oninput="_updateStats()">
+            </div>
+            <div id="ce-goal-label" class="editor-goal-label"></div>
+            <div class="progress-bar-outer">
+              <div class="progress-bar-inner" id="ce-goal-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Main writing area -->
+    <main class="editor-main" style="position:relative">
+
+      <!-- Find & Replace panel -->
+      <div id="find-replace-overlay" class="find-replace-panel hidden">
+        <div class="find-row">
+          <input type="text" id="fr-find" class="form-control" placeholder="Chercher…" oninput="findInEditor()" style="font-size:13px">
+          <span class="find-counter" id="fr-status"></span>
+          <button class="btn btn-ghost btn-sm" onclick="findPrev()">▲</button>
+          <button class="btn btn-ghost btn-sm" onclick="findNext()">▼</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeFindReplace()">✕</button>
+        </div>
+        <div class="find-row">
+          <input type="text" id="fr-replace" class="form-control" placeholder="Remplacer par…" style="font-size:13px">
+          <button class="btn btn-secondary btn-sm" onclick="replaceOne()">Remplacer</button>
+          <button class="btn btn-secondary btn-sm" onclick="replaceAll()">Tout</button>
+        </div>
+      </div>
+
+      <!-- Formatting toolbar -->
+      <div class="editor-toolbar">
+        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="ce-btn-bold"      onclick="editorFormat('bold')"      title="Gras (Ctrl+B)"><b>G</b></button>
+        <button class="editor-toolbar-btn" id="ce-btn-italic"    onclick="editorFormat('italic')"    title="Italique (Ctrl+I)"><i>I</i></button>
+        <button class="editor-toolbar-btn" id="ce-btn-underline" onclick="editorFormat('underline')" title="Souligné (Ctrl+U)" style="text-decoration:underline">S</button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="ce-btn-h1" onclick="editorSetHeading(1)" title="Titre 1">H1</button>
+        <button class="editor-toolbar-btn" id="ce-btn-h2" onclick="editorSetHeading(2)" title="Titre 2">H2</button>
+        <button class="editor-toolbar-btn" id="ce-btn-h3" onclick="editorSetHeading(3)" title="Titre 3">H3</button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="ce-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button class="editor-toolbar-btn" id="ce-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="3 12 7 16 3 20"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="11 12 7 16 11 20"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="15" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Quill editor -->
+      <div class="editor-content-area">
+        <div class="editor-content-inner">
+          <div id="chapter-quill-wrap" class="editor-quill-wrap"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== SCENE EDITOR PAGE ===================== -->
+<div id="scene-editor-page" class="page hidden editor-page">
+
+  <!-- Fixed Header -->
+  <header class="editor-header">
+    <div class="editor-header-left">
+      <button class="btn btn-ghost" onclick="closeSceneEditor()" style="font-size:13px;gap:6px;flex-shrink:0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Retour
+      </button>
+      <input type="text" id="se-title" class="editor-title-input" placeholder="Titre de la scène…">
+    </div>
+    <div class="editor-header-right">
+      <div class="session-stats" id="se-session-stats" style="display:none">
+        <div class="session-stat-item"><span class="session-stat-val" id="se-session-time">0:00</span><span class="session-stat-label">session</span></div>
+        <div class="session-stat-item"><span class="session-stat-val" id="se-session-words">+0</span><span class="session-stat-label">mots</span></div>
+      </div>
+      <span id="se-wordcount" class="editor-wordcount">0 mot</span>
+      <span id="se-autosave" class="editor-autosave">—</span>
+      <button class="btn btn-ghost" onclick="splitSceneAtCursor()" style="font-size:12px" title="Diviser la scène au curseur">✂️ Diviser</button>
+      <button class="btn btn-ghost" onclick="toggleTypoFormatting()" id="se-btn-typo" style="font-size:12px" title="Formatage typographique">Typo</button>
+      <button class="btn btn-ghost" onclick="openFindReplace()" style="font-size:12px" title="Chercher/Remplacer (Ctrl+F)">🔍</button>
+      <button class="btn btn-ghost editor-focus-btn" id="se-btn-focus" onclick="toggleFocusMode()" style="font-size:13px;gap:6px" title="Mode focus (F11)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        Focus
+      </button>
+      <button class="btn btn-primary" onclick="saveSceneEditor()" style="font-size:13px">Enregistrer</button>
+    </div>
+  </header>
+
+  <div class="editor-layout">
+
+    <!-- Sidebar -->
+    <aside class="editor-sidebar" id="se-sidebar">
+      <div class="editor-sidebar-inner">
+
+        <!-- Metadata -->
+        <div class="editor-sidebar-section">
+          <h4>Métadonnées</h4>
+          <div class="editor-meta-group">
+            <div>
+              <label>POV</label>
+              <select id="se-pov" class="form-control"></select>
+            </div>
+            <div>
+              <label>Statut</label>
+              <select id="se-statut" class="form-control">
+                <option value="Brouillon">Brouillon</option>
+                <option value="En cours">En cours</option>
+                <option value="Terminé">Terminé</option>
+              </select>
+            </div>
+            <div>
+              <label>Tags</label>
+              <input type="text" id="se-tags" class="form-control" placeholder="action, dialogue…">
+            </div>
+            <div>
+              <label>Assignée au chapitre</label>
+              <select id="se-chapitre" class="form-control"></select>
+            </div>
+            <div>
+              <label>Notes</label>
+              <textarea id="se-notes" class="form-control" rows="4" placeholder="Rappels, TODO, continuité…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-stats-divider"></div>
+
+        <!-- Stats -->
+        <div class="editor-stats-section">
+          <h4>Statistiques</h4>
+          <div class="editor-stat-row"><span>Mots</span><strong id="se-stat-words">0</strong></div>
+          <div class="editor-stat-row"><span>Caractères</span><strong id="se-stat-chars">0</strong></div>
+          <div class="editor-stat-row"><span>Paragraphes</span><strong id="se-stat-paras">0</strong></div>
+          <div class="editor-stat-row"><span>Temps lecture</span><strong id="se-stat-read">0 min</strong></div>
+          <div class="editor-goal-wrap">
+            <label>Objectif mots</label>
+            <div class="editor-goal-input-row">
+              <input type="number" id="se-goal-input" placeholder="ex. 1000" min="0" oninput="_updateStats()">
+            </div>
+            <div id="se-goal-label" class="editor-goal-label"></div>
+            <div class="progress-bar-outer">
+              <div class="progress-bar-inner" id="se-goal-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Main writing area -->
+    <main class="editor-main">
+
+      <!-- Formatting toolbar -->
+      <div class="editor-toolbar">
+        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="se-btn-bold"      onclick="editorFormat('bold')"      title="Gras (Ctrl+B)"><b>G</b></button>
+        <button class="editor-toolbar-btn" id="se-btn-italic"    onclick="editorFormat('italic')"    title="Italique (Ctrl+I)"><i>I</i></button>
+        <button class="editor-toolbar-btn" id="se-btn-underline" onclick="editorFormat('underline')" title="Souligné (Ctrl+U)" style="text-decoration:underline">S</button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="se-btn-h1" onclick="editorSetHeading(1)" title="Titre 1">H1</button>
+        <button class="editor-toolbar-btn" id="se-btn-h2" onclick="editorSetHeading(2)" title="Titre 2">H2</button>
+        <button class="editor-toolbar-btn" id="se-btn-h3" onclick="editorSetHeading(3)" title="Titre 3">H3</button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" id="se-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button class="editor-toolbar-btn" id="se-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="toolbar-sep"></div>
+        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="3 12 7 16 3 20"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="11 12 7 16 11 20"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="15" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Quill editor -->
+      <div class="editor-content-area">
+        <div class="editor-content-inner">
+          <div id="scene-quill-wrap" class="editor-quill-wrap"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Focus mode hint -->
+<div id="focus-mode-hint">Appuyez sur <strong>Échap</strong> ou <strong>F11</strong> pour quitter le mode focus</div>
+
+<!-- ===================== MODALS FEATURES ===================== -->
+
+<!-- Citation modal -->
+<div id="modal-citation" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-citation-title">Nouvelle citation</h3>
+      <button class="modal-close" onclick="closeModal('modal-citation')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="cit-texte">Citation *</label>
+        <textarea id="cit-texte" class="form-control" rows="3" placeholder="Saisir la citation…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="cit-personnage">Personnage</label>
+          <select id="cit-personnage" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label for="cit-chapitre">Chapitre</label>
+          <select id="cit-chapitre" class="form-control"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="cit-contexte">Contexte</label>
+        <input type="text" id="cit-contexte" class="form-control" placeholder="Contexte narratif…">
+      </div>
+      <div class="form-group">
+        <label for="cit-importance">Importance (1-5)</label>
+        <input type="range" id="cit-importance" class="form-control" min="1" max="5" value="3">
+      </div>
+      <div class="form-group">
+        <label>Thèmes</label>
+        <div id="cit-themes" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"></div>
+      </div>
+      <div class="form-group">
+        <label for="cit-notes">Notes</label>
+        <textarea id="cit-notes" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-citation')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCitation()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Journal modal -->
+<div id="modal-journal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-journal-title">Nouvelle entrée</h3>
+      <button class="modal-close" onclick="closeModal('modal-journal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="jou-titre">Titre *</label>
+          <input type="text" id="jou-titre" class="form-control" placeholder="Titre de l'entrée…">
+        </div>
+        <div class="form-group">
+          <label for="jou-categorie">Catégorie</label>
+          <select id="jou-categorie" class="form-control">
+            <option value="session">✍️ Session écriture</option>
+            <option value="idee">💡 Idée</option>
+            <option value="objectif">🎯 Objectif</option>
+            <option value="blocage">🔴 Blocage</option>
+            <option value="resolution">✅ Résolution</option>
+            <option value="bilan">📊 Bilan</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="jou-date">Date</label>
+          <input type="datetime-local" id="jou-date" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="jou-mood">Humeur</label>
+          <input type="text" id="jou-mood" class="form-control" placeholder="😊 🔥 😴…">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="jou-contenu">Contenu</label>
+        <textarea id="jou-contenu" class="form-control" rows="5" placeholder="Détails de la session, idées, blocages…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="jou-mots">Mots écrits</label>
+          <input type="number" id="jou-mots" class="form-control" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label for="jou-progression">Progression (%)</label>
+          <input type="number" id="jou-progression" class="form-control" placeholder="0" min="0" max="100">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-journal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveJournalEntry()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Backup Manager modal -->
+<div id="modal-backup-manager" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Gestionnaire de sauvegardes</h3>
+      <button class="modal-close" onclick="closeModal('modal-backup-manager')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="createAdvancedBackup(state.currentProjectId).then(()=>{showToast('Sauvegarde créée','success');openBackupManager()})">💾 Nouvelle sauvegarde</button>
+      </div>
+      <div id="backup-manager-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-backup-manager')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template modal -->
+<div id="modal-template" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-template-title">Nouveau template</h3>
+      <button class="modal-close" onclick="closeModal('modal-template')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:8px;margin-bottom:12px">
+        <input type="text" id="tpl-titre" class="form-control" placeholder="Titre du template *">
+        <select id="tpl-categorie" class="form-control">
+          <option value="Autre">Autre</option>
+          <option value="Action">Action</option>
+          <option value="Dialogue">Dialogue</option>
+          <option value="Description">Description</option>
+          <option value="Transition">Transition</option>
+        </select>
+        <input type="text" id="tpl-desc" class="form-control" placeholder="Description courte…">
+        <textarea id="tpl-contenu" class="form-control" rows="6" placeholder="Contenu du template…"></textarea>
+        <button class="btn btn-primary btn-sm" onclick="saveTemplate()">💾 Enregistrer</button>
+      </div>
+      <hr>
+      <h4 style="margin-bottom:8px;font-size:13px;color:var(--gray-600)">Templates disponibles</h4>
+      <div id="templates-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-template')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Snippet modal -->
+<div id="modal-snippet" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-snippet-title">Nouveau snippet</h3>
+      <button class="modal-close" onclick="closeModal('modal-snippet')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:8px;margin-bottom:12px">
+        <input type="text" id="snip-titre" class="form-control" placeholder="Titre du snippet *">
+        <textarea id="snip-contenu" class="form-control" rows="3" placeholder="Contenu…"></textarea>
+        <input type="text" id="snip-tags" class="form-control" placeholder="Tags (séparés par virgule)">
+        <button class="btn btn-primary btn-sm" onclick="saveSnippet()">💾 Enregistrer</button>
+      </div>
+      <hr>
+      <div id="snippets-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-snippet')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Convert Chapter modal -->
+<div id="modal-convert-chapter" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Convertir en scènes</h3>
+      <button class="modal-close" onclick="closeModal('modal-convert-chapter')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="convert-chapter-id">
+      <input type="hidden" id="convert-parts-data">
+      <p style="color:var(--gray-600);font-size:13px;margin-bottom:12px">Le chapitre sera divisé aux séparateurs détectés (###, ***, ---, double saut de ligne) et chaque partie deviendra une scène. <strong id="convert-count">0</strong> partie(s) détectée(s).</p>
+      <div id="convert-preview" class="convert-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-convert-chapter')">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmConvertChapter()">✂️ Convertir en scènes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Continuous View modal -->
+<div id="modal-continuous-view" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="continuous-view-title">Vue continue</h3>
+      <button class="modal-close" onclick="closeModal('modal-continuous-view')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="continuous-view-body" class="continuous-view-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-continuous-view')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Version History modal -->
+<div id="modal-version-history" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Historique des versions</h3>
+      <button class="modal-close" onclick="closeModal('modal-version-history')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="vh-type">
+      <input type="hidden" id="vh-item-id">
+      <div id="version-history-list"></div>
+      <div id="version-compare-content" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-version-history')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ebook Preview modal -->
+<div id="modal-ebook-preview" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Aperçu liseuse</h3>
+      <button class="modal-close" onclick="closeModal('modal-ebook-preview')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ereader-toolbar">
+        <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(13)">A-</button>
+        <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(15)">A</button>
+        <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(18)">A+</button>
+        <button class="btn btn-secondary btn-sm" onclick="ereaderToggleNight()">🌙 Nuit</button>
+      </div>
+      <div id="ereader-content"></div>
+      <div class="ereader-nav">
+        <button id="ereader-prev" class="btn btn-secondary btn-sm" onclick="ereaderPrev()">← Préc.</button>
+        <span id="ereader-counter" class="ereader-counter"></span>
+        <button id="ereader-next" class="btn btn-secondary btn-sm" onclick="ereaderNext()">Suiv. →</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ebook-preview')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prose Stats modal -->
+<div id="modal-prose-stats" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Statistiques de prose</h3>
+      <button class="modal-close" onclick="closeModal('modal-prose-stats')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <div id="prose-stats-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-prose-stats')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Palette Generator modal -->
+<div id="modal-palette-gen" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Générateur de palettes</h3>
+      <button class="modal-close" onclick="closeModal('modal-palette-gen')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="palette-section">
+        <h4>Extraire depuis une image</h4>
+        <label class="btn btn-secondary" style="cursor:pointer">
+          📂 Choisir une image
+          <input type="file" accept="image/*" onchange="extractPaletteFromImage(event)" style="display:none">
+        </label>
+        <div id="palette-results" style="margin-top:12px"></div>
+      </div>
+      <hr>
+      <div class="palette-section">
+        <h4>Générer une harmonie</h4>
+        <div class="palette-actions">
+          <input type="color" id="palette-base-color" value="#6366F1" class="form-control" style="width:60px;height:40px">
+          <select id="palette-harmony-type" class="form-control" style="width:auto">
+            <option value="complementaire">Complémentaire</option>
+            <option value="analogue">Analogue</option>
+            <option value="triadique">Triadique</option>
+            <option value="nuances">Nuances</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="generateHarmony(document.getElementById('palette-base-color').value, document.getElementById('palette-harmony-type').value)">Générer</button>
+        </div>
+        <div id="palette-manual"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-palette-gen')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Spellcheck modal -->
+<div id="modal-spellcheck" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Correcteur orthographique</h3>
+      <button class="modal-close" onclick="closeModal('modal-spellcheck')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <div id="spellcheck-results"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-spellcheck')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- EPUB Validator modal -->
+<div id="modal-epub-validator" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Validation EPUB</h3>
+      <button class="modal-close" onclick="closeModal('modal-epub-validator')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="epub-validation-results"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-epub-validator')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Publication Checklist modal -->
+<div id="modal-publication-checklist" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Checklist de publication</h3>
+      <button class="modal-close" onclick="closeModal('modal-publication-checklist')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <div id="publication-checklist"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-publication-checklist')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cohérence modal -->
+<div id="modal-coherence" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Détecteur d'incohérences</h3>
+      <button class="modal-close" onclick="closeModal('modal-coherence')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <div id="coherence-results"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-coherence')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PRESENTATION OVERLAY ===================== -->
+<div id="presentation-overlay" class="hidden" tabindex="0">
+  <div class="presentation-header">
+    <button class="btn btn-ghost" onclick="closePresentationMode()" style="color:white;font-size:13px">✕ Quitter</button>
+    <span id="slide-counter" style="color:rgba(255,255,255,0.6);font-size:14px">1 / 1</span>
+    <span></span>
+  </div>
+  <div class="presentation-slide">
+    <div id="slide-content"></div>
+  </div>
+  <div class="presentation-nav">
+    <button id="present-btn-prev" onclick="presentPrev()">← Précédent</button>
+    <button id="present-btn-next" onclick="presentNext()">Suivant →</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script defer src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script defer src="app.js"></script>
+<script defer src="scenes.js"></script>
+<script defer src="editor.js"></script>
+<script defer src="features.js"></script>
+
+<!-- Service Worker Registration for PWA Support -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(
+      registration => {
+        console.log('✓ Service Worker registered:', registration);
+      },
+      error => {
+        console.warn('✗ Service Worker registration failed:', error);
+      }
+    );
+  });
+}
+</script>
+</body>
+</html>

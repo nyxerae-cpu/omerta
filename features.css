@@ -1,0 +1,933 @@
+/* ============================================================
+   features.css — Styles pour les fonctionnalités avancées
+   ============================================================ */
+
+/* ── Citations ────────────────────────────────────────────── */
+.citation-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.citation-text {
+  font-size: 16px;
+  font-style: italic;
+  color: var(--gray-800);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.citation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 6px;
+}
+.citation-stars {
+  color: #F59E0B;
+  letter-spacing: 1px;
+}
+.citation-themes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.citation-contexte {
+  font-size: 12px;
+  color: var(--gray-500);
+  border-top: 1px solid var(--gray-100);
+  padding-top: 6px;
+  margin-top: 6px;
+}
+.citation-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.theme-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cit-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.cit-filters .form-control { width: auto; }
+
+/* ── Journal ──────────────────────────────────────────────── */
+.journal-stats {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--gray-600);
+  flex-wrap: wrap;
+}
+.journal-entry {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.journal-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.journal-cat {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.journal-date {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-left: auto;
+}
+.journal-mood {
+  font-size: 18px;
+}
+.journal-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+}
+.journal-body {
+  font-size: 13px;
+  color: var(--gray-600);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.journal-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.journal-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  max-width: 120px;
+}
+.journal-progress-bar > div {
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  flex: 1;
+}
+.journal-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.journal-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.journal-filters .form-control { width: auto; }
+
+/* ── Chronomètre timeline ─────────────────────────────────── */
+.timeline-item-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 140px 80px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+}
+.timeline-chap-num {
+  font-weight: 700;
+  color: var(--primary);
+}
+.timeline-chap-title {
+  color: var(--gray-800);
+}
+.timeline-time {
+  color: var(--gray-500);
+  font-family: monospace;
+}
+.timeline-dur {
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.timeline-total {
+  padding: 10px 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+  text-align: right;
+}
+#chapter-timeline-view { margin-top: 16px; }
+
+/* ── Version History ──────────────────────────────────────── */
+.version-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  background: var(--white);
+}
+.version-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.version-meta strong { color: var(--gray-800); }
+.version-meta span   { font-size: 11px; color: var(--gray-400); }
+.version-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.diff-view {
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  padding: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.diff-added   { background: #D1FAE5; color: #065F46; }
+.diff-removed { background: #FEE2E2; color: #991B1B; }
+.diff-same    { color: var(--gray-500); }
+
+/* ── Scene Corkboard ──────────────────────────────────────── */
+.cork-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px 0;
+}
+.scene-cork-card {
+  background: #FEFCE8;
+  border: 1px solid #D97706;
+  border-radius: 4px;
+  padding: 12px;
+  box-shadow: 2px 3px 8px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.scene-cork-card:hover {
+  transform: translateY(-2px) rotate(0.5deg);
+  box-shadow: 4px 6px 14px rgba(0,0,0,0.15);
+}
+.scene-cork-card.selected {
+  background: #EEF2FF;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+.cork-card-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cork-card-wc {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--gray-500);
+}
+.cork-card-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-800);
+  line-height: 1.3;
+}
+.cork-card-pov {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+.cork-card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cork-card-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ── Scenes Stats Bar ─────────────────────────────────────── */
+.scenes-stats-bar {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.scenes-stat-item { color: var(--gray-600); }
+.scenes-stat-item strong { color: var(--gray-800); }
+.scenes-stat-alert {
+  color: #D97706;
+  font-weight: 500;
+  margin-left: auto;
+}
+.scenes-view-btns {
+  display: flex;
+  gap: 4px;
+}
+.scenes-view-btns .btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ── Merge Bar ────────────────────────────────────────────── */
+.scenes-merge-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+.merge-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-text);
+}
+
+/* ── Cohérence ────────────────────────────────────────────── */
+.coherence-issue {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  font-size: 13px;
+  border: 1px solid;
+}
+.coherence-error   { background: #FEF2F2; border-color: #FECACA; color: #7F1D1D; }
+.coherence-warning { background: #FFFBEB; border-color: #FDE68A; color: #78350F; }
+.coherence-info    { background: #EFF6FF; border-color: #BFDBFE; color: #1E3A5F; }
+.coherence-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 2px;
+  opacity: 0.7;
+}
+
+/* ── Prose Stats ──────────────────────────────────────────── */
+.prose-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.prose-stat-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+}
+.prose-stat-val   { font-size: 20px; font-weight: 700; color: var(--primary); }
+.prose-stat-label { font-size: 11px; color: var(--gray-500); margin-top: 4px; }
+.word-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+}
+.word-cloud-item { color: var(--gray-700); line-height: 1; }
+.word-cloud-item sup { font-size: 9px; color: var(--gray-400); }
+.presence-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.presence-name { font-weight: 600; color: var(--gray-700); truncate: true; }
+.presence-bar-wrap {
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.presence-bar {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+}
+.presence-pct { font-size: 12px; color: var(--gray-500); text-align: right; }
+.chap-bars {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 100px;
+  padding: 8px 0;
+  overflow-x: auto;
+}
+.chap-bar-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.chap-bar {
+  width: 24px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  min-height: 4px;
+}
+.chap-bar-label { font-size: 10px; color: var(--gray-500); }
+
+/* ── Présentation ─────────────────────────────────────────── */
+#presentation-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0F172A;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+#presentation-overlay.hidden { display: none; }
+.presentation-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.presentation-slide {
+  width: min(800px, 90vw);
+  min-height: 400px;
+  background: white;
+  border-radius: 12px;
+  padding: 48px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.presentation-nav {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 24px;
+}
+.presentation-nav button {
+  padding: 10px 24px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: var(--radius);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+}
+.presentation-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+.presentation-nav button:disabled { opacity: 0.3; cursor: default; }
+#slide-counter { color: rgba(255,255,255,0.6); font-size: 14px; min-width: 60px; text-align: center; }
+.slide-title { text-align: center; width: 100%; }
+.slide-title h1 { font-size: 36px; color: #1E293B; margin: 0 0 12px; }
+.slide-title p  { color: #64748B; font-size: 16px; }
+.slide-stats { text-align: center; width: 100%; }
+.slide-stats h2 { font-size: 24px; color: #1E293B; margin-bottom: 24px; }
+.slide-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.slide-stats-grid > div { text-align: center; }
+.slide-stats-grid span { display: block; font-size: 36px; font-weight: 700; color: #6366F1; }
+.slide-card { text-align: center; width: 100%; }
+.slide-card h3 { font-size: 22px; color: #1E293B; margin: 12px 0 6px; }
+.slide-avatar {
+  width: 80px; height: 80px;
+  background: #6366F1;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; color: white; font-weight: 700;
+  margin: 0 auto 12px;
+}
+.slide-photo {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 12px;
+  display: block;
+}
+.slide-badge {
+  display: inline-block;
+  background: #EEF2FF;
+  color: #4338CA;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.slide-traits {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.slide-traits span {
+  background: #F1F5F9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+.slide-section-title {
+  text-align: center;
+  width: 100%;
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  margin: -48px;
+  border-radius: 12px;
+  padding: 80px;
+}
+.slide-section-title h2 { color: white; font-size: 32px; margin: 0; }
+.slide-lieu { text-align: center; width: 100%; }
+.slide-lieu h3 { font-size: 22px; color: #1E293B; }
+
+/* ── Ebook Preview (e-reader) ─────────────────────────────── */
+#modal-ebook-preview .modal {
+  max-width: 540px;
+  background: #FAF8F3;
+  font-family: Georgia, serif;
+}
+#modal-ebook-preview.ereader-night .modal {
+  background: #1a1a2e;
+  color: #C0B8A0;
+}
+.ereader-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--gray-200);
+  flex-wrap: wrap;
+}
+.ereader-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+}
+.ereader-counter { font-size: 12px; color: var(--gray-500); min-width: 100px; text-align: center; }
+#ereader-content {
+  min-height: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px 0;
+  line-height: 1.8;
+  font-size: 15px;
+}
+.ereader-title-page { text-align: center; padding: 40px 0; }
+.ereader-title-page h1 { font-size: 24px; margin-bottom: 12px; }
+.ereader-toc { padding: 16px 0; }
+.ereader-toc h2 { font-size: 18px; margin-bottom: 12px; }
+.ereader-toc-item { padding: 6px 0; border-bottom: 1px dotted var(--gray-200); font-size: 14px; }
+.ereader-chapter h2 { font-size: 18px; margin-bottom: 16px; }
+.ereader-chapter p  { margin-bottom: 12px; text-align: justify; }
+
+/* ── Manuscrit Stats ──────────────────────────────────────── */
+.manu-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.manu-stat {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.manu-stat span { display: block; font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+.manu-bars {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 90px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.manu-bar-item { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+.manu-bar {
+  width: 20px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  min-height: 4px;
+}
+.manu-bar-label { font-size: 10px; color: var(--gray-500); }
+.manu-alert {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.manu-alert.warning { background: #FFFBEB; color: #78350F; border: 1px solid #FDE68A; }
+#manuscript-global-stats {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+/* ── EPUB Validator ───────────────────────────────────────── */
+.epub-score {
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.epub-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.epub-check.pass { background: #D1FAE5; color: #065F46; }
+.epub-check.fail { background: #FEE2E2; color: #991B1B; }
+
+/* ── Checklist ────────────────────────────────────────────── */
+.checklist-score {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+.checklist-progress {
+  flex: 1;
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.checklist-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+.checklist-category { margin-bottom: 16px; }
+.checklist-category h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--gray-400);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.checklist-item:hover { background: var(--gray-50); }
+.checklist-item input { cursor: pointer; }
+
+/* ── Palette Générateur ───────────────────────────────────── */
+.palette-swatches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.palette-swatch {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  border: 2px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: transform 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.palette-swatch:hover { transform: scale(1.1); }
+.palette-hex {
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  padding: 2px 4px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 0 0 var(--radius) var(--radius);
+  width: 100%;
+  text-align: center;
+}
+.palette-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.palette-section { margin-bottom: 16px; }
+.palette-section h4 { margin-bottom: 8px; font-size: 13px; color: var(--gray-700); }
+
+/* ── Spellcheck ───────────────────────────────────────────── */
+.spell-issue {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.spell-text {
+  font-weight: 600;
+  font-size: 14px;
+  color: #DC2626;
+  margin-bottom: 4px;
+}
+.spell-msg {
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-bottom: 6px;
+}
+.spell-suggestions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Find & Replace ───────────────────────────────────────── */
+.find-replace-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 0 0 0 var(--radius);
+  padding: 12px 16px;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 320px;
+}
+.find-replace-panel.hidden { display: none; }
+.find-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.find-row .form-control { flex: 1; }
+.find-counter {
+  font-size: 12px;
+  color: var(--gray-400);
+  min-width: 40px;
+  text-align: right;
+}
+.find-highlight {
+  background: #FBBF24 !important;
+  color: #1A1A1A !important;
+}
+.find-highlight-current {
+  background: #F59E0B !important;
+  outline: 2px solid #D97706;
+}
+
+/* ── Session Stats ────────────────────────────────────────── */
+.session-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.session-stat-item { display: flex; flex-direction: column; align-items: center; }
+.session-stat-val  { font-size: 13px; font-weight: 700; color: var(--gray-700); }
+.session-stat-label { font-size: 10px; }
+
+/* ── Modals — Templates ───────────────────────────────────── */
+.template-item, .snippet-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+  background: var(--white);
+}
+.template-item:hover, .snippet-item:hover { background: var(--gray-50); }
+.template-info, .snippet-info { flex: 1; }
+.template-name, .snippet-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-800);
+}
+.template-preview, .snippet-preview {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.template-actions, .snippet-actions { display: flex; gap: 4px; }
+
+/* ── Convert Chapter / Continuous View ───────────────────── */
+.convert-preview {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.convert-scene-preview {
+  padding: 8px;
+  margin-bottom: 6px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+}
+.convert-scene-num { font-weight: 700; color: var(--primary); font-size: 11px; margin-bottom: 2px; }
+.convert-scene-excerpt { font-size: 12px; color: var(--gray-600); }
+.continuous-view-content {
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.continuous-scene-block {
+  margin-bottom: 24px;
+}
+.continuous-scene-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--primary);
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.continuous-scene-text {
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: var(--gray-800);
+}
+.continuous-separator {
+  text-align: center;
+  color: var(--gray-400);
+  margin: 12px 0;
+  font-size: 16px;
+}
+
+/* ── Backup manager ───────────────────────────────────────── */
+.backup-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.backup-info { flex: 1; }
+.backup-date { font-size: 12px; color: var(--gray-500); }
+.backup-actions { display: flex; gap: 6px; }
+
+/* ── EPUB metadata in manuscrit ───────────────────────────── */
+.epub-meta-section {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 16px;
+}
+.epub-meta-section h4 { margin: 0 0 12px; font-size: 14px; color: var(--gray-700); }
+.epub-cover-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+#epub-cover-preview {
+  width: 80px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--gray-200);
+  display: none;
+}
+.manuscrit-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .slide-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .presentation-slide { padding: 24px; min-height: 250px; }
+  .cork-board-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .timeline-item-row { grid-template-columns: 50px 1fr; }
+  .timeline-time, .timeline-dur { display: none; }
+}

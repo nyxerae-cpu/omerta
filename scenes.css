@@ -1,0 +1,632 @@
+/* ============================================================
+   scenes.css — Système de scènes WorldBuilder
+   ============================================================ */
+
+/* ============================================================
+   Modal sizes
+   ============================================================ */
+.modal-lg { max-width: 680px; }
+.modal-xl { max-width: 860px; }
+
+/* ============================================================
+   Scene textarea
+   ============================================================ */
+.scene-textarea {
+  min-height: 200px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.8;
+  resize: vertical;
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 6px;
+}
+.field-hint code {
+  background: var(--gray-100);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--primary-text);
+}
+
+/* ============================================================
+   BIBLIOTHÈQUE PAGE
+   ============================================================ */
+.biblio-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  padding: 16px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: var(--shadow-sm);
+}
+.biblio-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.biblio-toolbar {
+  display: flex;
+  gap: 12px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-100);
+}
+.biblio-select { max-width: 210px; }
+.biblio-search { max-width: 320px; }
+
+.biblio-content {
+  padding: 28px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.biblio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Bibliothèque card */
+.biblio-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  border: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.biblio-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+.biblio-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.biblio-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-800);
+  line-height: 1.3;
+}
+.biblio-card-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
+  flex-shrink: 0;
+}
+.biblio-card:hover .biblio-card-actions { opacity: 1; }
+
+.biblio-card-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.biblio-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tag-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.biblio-card-desc {
+  font-size: 13px;
+  color: var(--gray-500);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.biblio-card-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-100);
+  display: flex;
+  gap: 8px;
+}
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+
+/* Category badges for global scenes */
+.badge-romance    { background: #FCE7F3; color: #9D174D; }
+.badge-tension    { background: #FEF3C7; color: #78350F; }
+.badge-action     { background: #FEE2E2; color: #991B1B; }
+.badge-revelation { background: #EDE9FE; color: #5B21B6; }
+.badge-autre      { background: #F3F4F6; color: #374151; }
+
+/* ============================================================
+   SCENES SECTION (project)
+   ============================================================ */
+.scenes-block {
+  margin-bottom: 24px;
+}
+.scenes-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.scenes-block-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.scene-count-badge {
+  background: var(--gray-100);
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 100px;
+}
+.scenes-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Drop zone */
+.scenes-drop-zone {
+  min-height: 80px;
+  border: 2px dashed var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color var(--transition), background var(--transition);
+}
+.scenes-drop-zone.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.scenes-drop-zone.drag-over .drop-hint { color: var(--primary-text); }
+
+.drop-hint {
+  text-align: center;
+  color: var(--gray-300);
+  font-size: 13px;
+  padding: 12px 0;
+  pointer-events: none;
+}
+/* Hide hint when scenes exist */
+.scenes-drop-zone:has(.scene-card) .drop-hint { display: none; }
+
+/* Scene card (local / assignée) */
+.scene-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow var(--transition), transform var(--transition), opacity var(--transition);
+}
+.scene-card:hover { box-shadow: var(--shadow); }
+.scene-card.dragging { opacity: .45; cursor: grabbing; }
+
+.scene-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.scene-card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.scene-drag-handle {
+  color: var(--gray-300);
+  cursor: grab;
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.scene-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-card-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
+  flex-shrink: 0;
+}
+.scene-card:hover .scene-card-actions { opacity: 1; }
+
+.scene-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.badge-globale  { background: #EDE9FE; color: #5B21B6; }
+.badge-brouillon { background: #F3F4F6; color: #374151; }
+.badge-en-cours  { background: #FEF3C7; color: #92400E; }
+.badge-termine   { background: #D1FAE5; color: #065F46; }
+
+.scene-card-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.scene-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* Chapter scene list (reorder) */
+.chapter-scene-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chapter-scene-order {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   IMPORT MODAL
+   ============================================================ */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  font-size: 14px;
+}
+.radio-option:hover { border-color: var(--primary); background: var(--primary-light); }
+.radio-option input[type="radio"] { margin-top: 2px; flex-shrink: 0; accent-color: var(--primary); }
+
+.import-vars-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.var-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.var-label {
+  font-family: monospace;
+  font-size: 13px;
+  background: var(--gray-100);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--primary-text);
+  font-weight: 500;
+}
+
+/* ============================================================
+   PREVIEW CHAPTER MODAL
+   ============================================================ */
+.preview-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.preview-scene {
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.preview-scene:last-child { border-bottom: none; margin-bottom: 0; }
+.preview-scene-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.preview-scene-num {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--gray-400);
+}
+.preview-scene-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+.preview-scene-meta {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+.preview-scene-text {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--gray-700);
+  white-space: pre-wrap;
+}
+.preview-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-400);
+  font-size: 14px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .biblio-header { padding: 14px 16px; }
+  .biblio-toolbar { padding: 12px 16px; flex-wrap: wrap; }
+  .biblio-select, .biblio-search { max-width: 100%; }
+  .biblio-content { padding: 16px; }
+  .biblio-grid { grid-template-columns: 1fr; }
+  .var-row { grid-template-columns: 1fr; }
+  .biblio-tabs { padding: 0 16px; }
+}
+
+/* ============================================================
+   BIBLIOTHÈQUE TABS
+   ============================================================ */
+.biblio-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 2px solid var(--gray-200);
+  background: var(--white);
+}
+
+.biblio-tab {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-500);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.biblio-tab:hover {
+  color: var(--gray-700);
+}
+
+.biblio-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ============================================================
+   MUSIC CARD ADDITIONS
+   ============================================================ */
+.music-card-cover {
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+  border-radius: 6px 6px 0 0;
+  margin: -16px -16px 12px -16px;
+  width: calc(100% + 32px);
+}
+
+.music-card-cover img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.music-card-artist {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   IMPORT MUSIC LIST
+   ============================================================ */
+.import-music-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-music-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.import-music-item:hover {
+  background: var(--gray-50);
+}
+
+.import-music-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.import-music-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.import-music-artist {
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
+/* ============================================================
+   GLOBAL SECTIONS LIBRARY — Cards
+   ============================================================ */
+.biblio-section-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  transition: transform .15s, box-shadow .15s;
+}
+.biblio-section-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.08);
+}
+.biblio-section-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+.biblio-section-desc {
+  font-size: 13px;
+  color: var(--gray-500);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+.biblio-section-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.biblio-section-fields-preview {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.biblio-section-usage {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: auto;
+}
+.biblio-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.biblio-tags .badge {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+/* ============================================================
+   IMPORT SECTION LIST
+   ============================================================ */
+.import-section-list {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.import-section-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+  border: 1px solid var(--gray-200);
+}
+.import-section-item:hover {
+  background: var(--gray-50);
+}
+.import-section-item.selected {
+  background: rgba(99, 102, 241, .06);
+  border-color: var(--primary);
+}
+.import-section-imported {
+  opacity: .55;
+  cursor: default;
+}
+.import-section-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+.import-section-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.import-section-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.import-section-info strong {
+  font-size: 14px;
+}
+.import-section-desc {
+  font-size: 12px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.import-section-meta {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
