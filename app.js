@@ -29,9 +29,94 @@ const lifecycleState = {
   isBackgrounded: false,
   lastPauseAt: 0,
   lastResumeAt: 0,
+  lastBackPressAt: 0,
 };
 
 window.__WB_APP_IN_BACKGROUND = false;
+
+const LAST_ROUTE_KEY = 'wb_last_route_v1';
+
+function persistCurrentRoute() {
+  const hash = (location.hash || '').trim();
+  if (!hash || hash === '#') return;
+  const payload = { hash, ts: Date.now() };
+  try {
+    localStorage.setItem(LAST_ROUTE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Route persistence failed:', err);
+  }
+}
+
+function getPersistedRoute() {
+  try {
+    const raw = localStorage.getItem(LAST_ROUTE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.hash !== 'string') return null;
+    return parsed.hash;
+  } catch (err) {
+    console.warn('Route restore parse failed:', err);
+    return null;
+  }
+}
+
+function restorePersistedRouteIfNeeded() {
+  if ((location.hash || '').trim()) return false;
+  if (state.currentProjectId) return false;
+  const persistedHash = getPersistedRoute();
+  if (!persistedHash || persistedHash === '#/home') return false;
+  state.suppressHashRouting = true;
+  location.hash = persistedHash;
+  setTimeout(() => { state.suppressHashRouting = false; _applyHashRoute(); }, 0);
+  return true;
+}
+
+function closeTopVisibleOverlay() {
+  const overlays = Array.from(document.querySelectorAll('.modal-overlay:not(.hidden)'));
+  if (!overlays.length) return false;
+  const top = overlays[overlays.length - 1];
+  if (!top || !top.id) return false;
+  closeModal(top.id);
+  return true;
+}
+
+function handleCordovaBackButton(event) {
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+
+  if (closeTopVisibleOverlay()) return;
+
+  if (window.editorState && editorState.type === 'chapter' && typeof closeChapterEditor === 'function') {
+    closeChapterEditor();
+    return;
+  }
+  if (window.editorState && editorState.type === 'scene' && typeof closeSceneEditor === 'function') {
+    closeSceneEditor();
+    return;
+  }
+
+  if (state.currentProjectId && state.currentSection && state.currentSection !== 'dashboard') {
+    navigateTo('dashboard');
+    return;
+  }
+
+  if (state.currentProjectId) {
+    showHomePage();
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lifecycleState.lastBackPressAt < 1500) {
+    if (navigator.app && typeof navigator.app.exitApp === 'function') navigator.app.exitApp();
+    return;
+  }
+
+  lifecycleState.lastBackPressAt = now;
+  showToast('Appuyez encore pour quitter', 'info');
+}
+
+function initAndroidBackButton() {
+  document.addEventListener('backbutton', handleCordovaBackButton, false);
+}
 
 function isAppActive() {
   return !lifecycleState.isBackgrounded && document.visibilityState !== 'hidden';
@@ -62,6 +147,10 @@ function initAppLifecycle() {
   document.addEventListener('visibilitychange', updateFromVisibility);
   document.addEventListener('pause', () => setAppBackgrounded(true, 'cordova-pause'));
   document.addEventListener('resume', () => setAppBackgrounded(false, 'cordova-resume'));
+  document.addEventListener('pause', persistCurrentRoute);
+  document.addEventListener('resume', restorePersistedRouteIfNeeded);
+  document.addEventListener('deviceready', initAndroidBackButton, false);
+  window.addEventListener('hashchange', persistCurrentRoute);
   window.addEventListener('pagehide', () => setAppBackgrounded(true, 'pagehide'));
   window.addEventListener('pageshow', () => setAppBackgrounded(false, 'pageshow'));
 
@@ -4510,7 +4599,7 @@ document.addEventListener('DOMContentLoaded', () => {
   applyAppearance(getProjectPrefs(state.currentProjectId));
   // Route startup from hash
   if (!location.hash) {
-    showHomePage();
+    if (!restorePersistedRouteIfNeeded()) showHomePage();
   } else {
     _applyHashRoute();
   }
