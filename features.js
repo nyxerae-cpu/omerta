@@ -1808,8 +1808,10 @@ const _ASSISTANT_GLOBAL_CONTEXT_KEY = 'wb_assistant_global_context';
 const _ASSISTANT_GLOBAL_FACTS_KEY = 'wb_assistant_global_facts';
 const _ASSISTANT_PROJECT_UI_COMPACT_KEY = 'wb_assistant_project_ui_compact';
 const _ASSISTANT_DOC_CHUNK_CHARS = 3500;
-const _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE = 18;
+const _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE = 0;
 const _ASSISTANT_DOC_MAX_FILES_PER_IMPORT = 6;
+const _ASSISTANT_DOC_FILES_DB = 'wb_assistant_docs';
+const _ASSISTANT_DOC_FILES_STORE = 'files';
 const _ASSISTANT_EYE_DEFS = [
   { key: 'bleu', variants: ['bleu', 'bleue', 'bleus', 'bleues'] },
   { key: 'vert', variants: ['vert', 'verte', 'verts', 'vertes'] },
@@ -2626,7 +2628,11 @@ function renderAssistantHubLibrary() {
         <div class="assistant-kb-item">
           <div class="assistant-kb-meta">${esc(_assistantCategoryLabel(k.category || 'note'))} - ${esc(new Date(k.ts || Date.now()).toLocaleDateString('fr'))}</div>
           <div>${esc(String(k.text || '').slice(0, 900))}${String(k.text || '').length > 900 ? ' ...' : ''}</div>
-          <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" onclick="assistantHubDeleteKnowledge('${k.id || idx}')">Supprimer</button></div>
+          ${k.category === 'document' && k.meta ? `<div class="settings-hint" style="margin-top:4px">${esc(k.meta.fileName || 'document')} ${k.meta.chunkTotal ? `(${k.meta.chunkIndex || 1}/${k.meta.chunkTotal})` : ''}</div>` : ''}
+          <div style="margin-top:6px">
+            ${k.category === 'document' ? `<button class="btn btn-secondary btn-sm" onclick="assistantHubOpenDocument('${k.id || idx}')">Ouvrir le document</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="assistantHubDeleteKnowledge('${k.id || idx}')">Supprimer</button>
+          </div>
         </div>
       `).join('');
     }
@@ -2828,7 +2834,19 @@ function assistantHubAddKnowledge() {
 
 function assistantHubDeleteKnowledge(id) {
   if (!id) return;
-  _assistantRemoveKnowledgeBySource('global', id);
+  const rows = _assistantGetGlobalKnowledge();
+  const row = rows.find(x => x && x.id === id);
+  if (!row) return;
+
+  const fileBlobId = row.meta && row.meta.fileBlobId ? row.meta.fileBlobId : '';
+  if (fileBlobId) {
+    const filtered = rows.filter(x => !(x && x.meta && x.meta.fileBlobId === fileBlobId));
+    _assistantSaveGlobalKnowledge(filtered);
+    _assistantDeleteImportedDocumentFile(fileBlobId).catch(() => {});
+  } else {
+    _assistantRemoveKnowledgeBySource('global', id);
+  }
+
   renderAssistantHubLibrary();
 }
 
@@ -2997,7 +3015,66 @@ function _assistantSplitDocChunks(text) {
     current = '';
   });
   if (current) chunks.push(current);
-  return chunks.slice(0, _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE);
+  if (_ASSISTANT_DOC_MAX_CHUNKS_PER_FILE > 0) {
+    return chunks.slice(0, _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE);
+  }
+  return chunks;
+}
+
+function _assistantOpenDocFilesDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_ASSISTANT_DOC_FILES_DB, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(_ASSISTANT_DOC_FILES_STORE)) {
+        db.createObjectStore(_ASSISTANT_DOC_FILES_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = () => reject(new Error('Impossible d\'ouvrir le stockage des documents'));
+  });
+}
+
+async function _assistantSaveImportedDocumentFile(file) {
+  const db = await _assistantOpenDocFilesDb();
+  const id = uid();
+  const payload = {
+    id,
+    name: file.name || 'document',
+    mimeType: file.type || '',
+    size: Number(file.size || 0),
+    blob: file,
+    ts: new Date().toISOString(),
+  };
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(_ASSISTANT_DOC_FILES_STORE, 'readwrite');
+    tx.objectStore(_ASSISTANT_DOC_FILES_STORE).put(payload);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error('Echec sauvegarde document'));
+  });
+  return id;
+}
+
+async function _assistantGetImportedDocumentFile(fileId) {
+  if (!fileId) return null;
+  const db = await _assistantOpenDocFilesDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_ASSISTANT_DOC_FILES_STORE, 'readonly');
+    const req = tx.objectStore(_ASSISTANT_DOC_FILES_STORE).get(fileId);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(new Error('Lecture document impossible'));
+  });
+}
+
+async function _assistantDeleteImportedDocumentFile(fileId) {
+  if (!fileId) return;
+  const db = await _assistantOpenDocFilesDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(_ASSISTANT_DOC_FILES_STORE, 'readwrite');
+    tx.objectStore(_ASSISTANT_DOC_FILES_STORE).delete(fileId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error('Suppression document impossible'));
+  });
 }
 
 function _assistantLoadScriptOnce(url) {
@@ -3060,6 +3137,24 @@ async function _assistantEnsureMammothLoaded() {
   throw new Error(lastErr ? lastErr.message : 'Lecteur DOCX non disponible');
 }
 
+async function _assistantEnsureJsZipLoaded() {
+  if (window.JSZip && typeof window.JSZip.loadAsync === 'function') return;
+  const candidates = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+  ];
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      await _assistantLoadScriptOnce(url);
+      if (window.JSZip && typeof window.JSZip.loadAsync === 'function') return;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw new Error(lastErr ? lastErr.message : 'Lecteur EPUB non disponible');
+}
+
 async function _assistantExtractPdfText(file) {
   await _assistantEnsurePdfJsLoaded();
   try {
@@ -3089,10 +3184,151 @@ async function _assistantExtractDocxText(file) {
   return String(out && out.value ? out.value : '');
 }
 
+function _assistantStripHtmlToText(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(String(html || ''), 'text/html');
+  return _assistantNormalizeDocText(doc.body ? doc.body.textContent : doc.documentElement.textContent);
+}
+
+function _assistantSafeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function _assistantResolvePath(basePath, relPath) {
+  const base = String(basePath || '');
+  const rel = String(relPath || '');
+  if (!rel) return '';
+  if (/^[a-z]+:/i.test(rel)) return rel;
+  if (rel.startsWith('/')) return rel.replace(/^\//, '');
+  const parts = base.split('/').slice(0, -1);
+  rel.split('/').forEach(seg => {
+    if (!seg || seg === '.') return;
+    if (seg === '..') parts.pop();
+    else parts.push(seg);
+  });
+  return parts.join('/');
+}
+
+async function _assistantExtractEpubText(file) {
+  const sections = await _assistantReadEpubSections(file);
+  return sections.map(s => s.text).filter(Boolean).join('\n\n');
+}
+
+async function _assistantReadEpubSections(file) {
+  await _assistantEnsureJsZipLoaded();
+  const buf = await file.arrayBuffer();
+  const zip = await window.JSZip.loadAsync(buf);
+  const parser = new DOMParser();
+
+  let opfPath = '';
+  const containerEntry = zip.file('META-INF/container.xml');
+  if (containerEntry) {
+    const containerXml = await containerEntry.async('string');
+    const containerDoc = parser.parseFromString(containerXml, 'application/xml');
+    opfPath = containerDoc.querySelector('rootfile')?.getAttribute('full-path') || '';
+  }
+
+  let orderedDocPaths = [];
+  if (opfPath && zip.file(opfPath)) {
+    const opfXml = await zip.file(opfPath).async('string');
+    const opfDoc = parser.parseFromString(opfXml, 'application/xml');
+    const manifestById = {};
+    opfDoc.querySelectorAll('manifest > item').forEach(item => {
+      const id = item.getAttribute('id');
+      const href = item.getAttribute('href') || '';
+      if (!id || !href) return;
+      manifestById[id] = {
+        href,
+        mediaType: item.getAttribute('media-type') || '',
+      };
+    });
+
+    opfDoc.querySelectorAll('spine > itemref').forEach(itemref => {
+      const idref = itemref.getAttribute('idref');
+      const found = idref ? manifestById[idref] : null;
+      if (!found) return;
+      if (!/xhtml|html|xml/i.test(found.mediaType || found.href)) return;
+      orderedDocPaths.push(_assistantResolvePath(opfPath, found.href));
+    });
+  }
+
+  if (!orderedDocPaths.length) {
+    orderedDocPaths = Object.keys(zip.files)
+      .filter(path => /\.(xhtml|html|htm)$/i.test(path))
+      .sort();
+  }
+
+  const parts = [];
+  for (const path of orderedDocPaths) {
+    const entry = zip.file(path);
+    if (!entry) continue;
+    const html = await entry.async('string');
+    const doc = parser.parseFromString(String(html || ''), 'text/html');
+    const title = _assistantNormalizeDocText(
+      (doc.querySelector('h1, h2, h3') && doc.querySelector('h1, h2, h3').textContent)
+      || (doc.querySelector('title') && doc.querySelector('title').textContent)
+      || ''
+    );
+    const bodyEl = doc.body || doc.documentElement;
+    if (!bodyEl) continue;
+    bodyEl.querySelectorAll('script').forEach(s => s.remove());
+    const bodyHtml = bodyEl.innerHTML || '';
+    const text = _assistantNormalizeDocText(bodyEl.textContent || '');
+    if (text || bodyHtml) {
+      parts.push({ path, title, text, bodyHtml });
+    }
+  }
+
+  return parts;
+}
+
+async function _assistantBuildEpubReaderBlob(file, fileName) {
+  const sections = await _assistantReadEpubSections(file);
+  const title = _assistantSafeHtml(fileName || 'EPUB');
+  const body = sections.map((section, idx) => {
+    const secTitle = _assistantSafeHtml(section.title || `Partie ${idx + 1}`);
+    const content = section.bodyHtml && section.bodyHtml.trim()
+      ? section.bodyHtml
+      : `<pre>${_assistantSafeHtml(section.text || '')}</pre>`;
+    return `<section class="epub-section"><h2>${secTitle}</h2>${content}</section>`;
+  }).join('\n');
+
+  const html = `<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    body { margin: 0; font-family: Georgia, serif; line-height: 1.7; color: #121212; background: #f7f3ea; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px 18px 60px; }
+    h1 { margin: 0 0 20px; font-size: 1.6rem; }
+    h2 { margin: 28px 0 10px; font-size: 1.15rem; border-bottom: 1px solid #ddd2bf; padding-bottom: 6px; }
+    img { max-width: 100%; height: auto; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .epub-section { margin-bottom: 30px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>${title}</h1>
+    ${body || '<p>Aucun contenu lisible dans cet EPUB.</p>'}
+  </div>
+</body>
+</html>`;
+  return new Blob([html], { type: 'text/html;charset=utf-8' });
+}
+
 async function _assistantExtractDocumentText(file) {
   const ext = _assistantDocExt(file && file.name ? file.name : '');
   if (ext === 'pdf') return _assistantExtractPdfText(file);
   if (ext === 'docx') return _assistantExtractDocxText(file);
+  if (ext === 'epub') return _assistantExtractEpubText(file);
   if (['txt', 'md', 'rtf'].includes(ext)) return file.text();
   if (ext === 'doc') {
     throw new Error('Le format .doc ancien n\'est pas supporte ici. Convertis en .docx ou .pdf.');
@@ -3111,11 +3347,14 @@ async function assistantHubImportDocumentFiles(event) {
   const now = new Date().toISOString();
 
   for (const file of selected) {
+    let fileBlobId = '';
     try {
+      fileBlobId = await _assistantSaveImportedDocumentFile(file);
       const text = await _assistantExtractDocumentText(file);
       const chunks = _assistantSplitDocChunks(text);
       if (!chunks.length) {
         failures.push(`${file.name}: aucun texte detecte`);
+        await _assistantDeleteImportedDocumentFile(fileBlobId).catch(() => {});
         continue;
       }
       chunks.forEach((chunk, i) => {
@@ -3128,6 +3367,7 @@ async function assistantHubImportDocumentFiles(event) {
             fileName: file.name,
             mimeType: file.type || '',
             size: Number(file.size || 0),
+            fileBlobId,
             chunkIndex: i + 1,
             chunkTotal: chunks.length,
           },
@@ -3135,6 +3375,9 @@ async function assistantHubImportDocumentFiles(event) {
         addedChunks++;
       });
     } catch (err) {
+      if (fileBlobId) {
+        await _assistantDeleteImportedDocumentFile(fileBlobId).catch(() => {});
+      }
       failures.push(`${file.name}: ${err && err.message ? err.message : 'erreur'}`);
     }
   }
@@ -3143,12 +3386,69 @@ async function assistantHubImportDocumentFiles(event) {
   renderAssistantHubLibrary();
 
   if (addedChunks > 0) {
-    showToast(`Import documents termine: ${addedChunks} extrait(s) ajoute(s)`, 'success');
+    showToast(`Import documents termine: ${addedChunks} segment(s) ajoute(s)`, 'success');
   }
   if (failures.length) {
     showToast(`Fichiers ignores: ${failures.slice(0, 2).join(' | ')}`, 'error');
   }
   event.target.value = '';
+}
+
+async function assistantHubOpenDocument(entryId) {
+  if (!entryId) return;
+  const rows = _assistantGetGlobalKnowledge();
+  const row = rows.find(x => x && x.id === entryId);
+  if (!row) {
+    showToast('Document introuvable', 'error');
+    return;
+  }
+
+  const meta = row.meta || {};
+  let blob = null;
+  let fileName = meta.fileName || 'document';
+  const ext = _assistantDocExt(fileName);
+  const mimeType = meta.mimeType || 'application/octet-stream';
+
+  if (meta.fileBlobId) {
+    try {
+      const stored = await _assistantGetImportedDocumentFile(meta.fileBlobId);
+      if (stored && stored.blob) {
+        blob = stored.blob;
+        fileName = stored.name || fileName;
+      }
+    } catch (_) {
+      // Fallback below.
+    }
+  }
+
+  if (!blob && row.text) {
+    blob = new Blob([row.text], { type: mimeType || 'text/plain;charset=utf-8' });
+  }
+  if (!blob) {
+    showToast('Le fichier source n\'est plus disponible', 'error');
+    return;
+  }
+
+  if (ext === 'epub') {
+    try {
+      blob = await _assistantBuildEpubReaderBlob(blob, fileName);
+      fileName = fileName.replace(/\.epub$/i, '') + '.html';
+    } catch (_) {
+      // Keep fallback opening with raw blob if rendering fails.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const popup = window.open(url, '_blank', 'noopener');
+  if (!popup) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 20000);
 }
 
 function assistantDeleteKnowledge(id, source) {
