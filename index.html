@@ -15,6 +15,8 @@
   <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
   <link rel="manifest" href="manifest.json">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
@@ -39,6 +41,17 @@
       <input type="text" id="home-search" class="form-control" placeholder="🔍 Rechercher un projet..." oninput="debouncedHomeSearch()" autocomplete="off" aria-label="Rechercher un projet" style="width:100%;padding:6px 10px;">
       <div id="home-search-results" class="search-results hidden" style="position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:4px;max-height:200px;overflow-y:auto;z-index:20;"></div>
     </div>
+    <div id="home-universe-toolbar" class="home-universe-toolbar hidden">
+      <div>
+        <h2 id="home-universe-title" class="home-universe-title"></h2>
+        <p id="home-universe-meta" class="home-universe-meta"></p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="openNewProjectModal(state.homeUniverseId || '')">+ Nouveau livre</button>
+        <button class="btn btn-ghost" onclick="leaveUniverseGallery()">← Tous les univers</button>
+      </div>
+    </div>
+    <div id="universes-grid" class="projects-grid universes-grid"></div>
     <div id="projects-grid" class="projects-grid"></div>
     <div id="no-projects" class="no-projects hidden">
       <div class="no-icon">📚</div>
@@ -773,6 +786,10 @@
         <label class="btn btn-secondary btn-sm" style="cursor:pointer">
           ⬆ Import JSON
           <input type="file" id="assistant-hub-kb-file" accept=".json" onchange="assistantHubImportKnowledgeFile(event)" style="display:none">
+        </label>
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+          📄 Import docs
+          <input type="file" id="assistant-hub-doc-file" accept=".pdf,.docx,.doc,.txt,.md,.rtf" multiple onchange="assistantHubImportDocumentFiles(event)" style="display:none">
         </label>
         <button class="btn btn-ghost btn-sm" onclick="assistantHubClearKnowledgeConfirm()">Vider</button>
       </div>

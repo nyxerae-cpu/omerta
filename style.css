@@ -198,6 +198,35 @@ button { font-family: inherit; }
   margin: 0 auto;
 }
 
+.home-universe-toolbar {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-universe-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 0;
+}
+
+.home-universe-meta {
+  color: var(--gray-500);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+.universes-grid {
+  margin-bottom: 16px;
+}
+
 .projects-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1405,6 +1434,10 @@ select.form-control {
   .home-header { padding: 16px 20px; }
   .home-content { padding: 20px 16px; }
   .projects-grid { grid-template-columns: 1fr; }
+  .home-universe-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
   /* Sidebar off-screen, toggled as overlay */
   .sidebar {

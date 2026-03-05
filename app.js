@@ -11,6 +11,7 @@
 const state = {
   currentProjectId: null,
   currentUniverseId: null,
+  homeUniverseId:    null,
   currentSection:   'dashboard',
   editingId:        null,
   editingSource:    'project',
@@ -432,31 +433,65 @@ async function installPWA() {
 // ============================================================
 // HOME PAGE
 // ============================================================
-function showHomePage() {
+function showHomePage(options = {}) {
+  const skipHash = !!options.skipHash;
   state.currentProjectId = null;
   state.currentUniverseId = null;
+  state.homeUniverseId = null;
   document.getElementById('home-page').classList.remove('hidden');
   document.getElementById('project-page').classList.add('hidden');
   document.getElementById('assistant-library-page')?.classList.add('hidden');
   document.getElementById('project-page').classList.remove('page-mode');
-  if (location.hash !== '#/home') location.hash = '#/home';
+  if (!skipHash && location.hash !== '#/home') location.hash = '#/home';
   renderProjectCards();
   if (deferredInstallPrompt && !isRunningStandalone()) setInstallButtonVisible(true);
 }
 
 function renderProjectCards(searchResults=null) {
-  // when called with search results, hide no-projects fallback
-  const projects  = searchResults || getProjects();
+  const allProjects = searchResults || getProjects();
+  const isUniverseGallery = !!state.homeUniverseId;
+  const projects = isUniverseGallery
+    ? allProjects.filter(p => p.universeId === state.homeUniverseId)
+    : allProjects.filter(p => !p.universeId);
   const grid      = $('projects-grid');
   const empty     = $('no-projects');
+  const universesGrid = $('universes-grid');
+  const universeToolbar = $('home-universe-toolbar');
+
+  if (universesGrid) universesGrid.classList.toggle('hidden', isUniverseGallery);
+  if (universeToolbar) {
+    universeToolbar.classList.toggle('hidden', !isUniverseGallery);
+    if (isUniverseGallery) {
+      const universe = getUniverseById(state.homeUniverseId);
+      const titleEl = $('home-universe-title');
+      const metaEl = $('home-universe-meta');
+      if (titleEl) titleEl.textContent = universe ? universe.name : 'Univers introuvable';
+      if (metaEl) {
+        metaEl.textContent = universe?.description
+          ? universe.description
+          : 'Galerie des livres de cet univers';
+      }
+    }
+  }
+
+  if (!isUniverseGallery) renderUniverseCards();
 
   if (projects.length === 0) {
     grid.innerHTML = '';
-    if (!searchResults) empty.classList.remove('hidden');
-    else empty.classList.add('hidden');
+    if (empty) {
+      const titleEl = empty.querySelector('h3');
+      const descEl = empty.querySelector('p');
+      if (titleEl) titleEl.textContent = isUniverseGallery ? 'Aucun livre dans cet univers' : 'Aucun livre hors univers';
+      if (descEl) {
+        descEl.textContent = isUniverseGallery
+          ? 'Ajoutez votre premier livre dans cet univers.'
+          : 'Les livres rattachés à un univers apparaissent dans leur galerie dédiée.';
+      }
+      empty.classList.remove('hidden');
+    }
     return;
   }
-  empty.classList.add('hidden');
+  if (empty) empty.classList.add('hidden');
 
   // Sort by updatedAt desc
   const sorted = [...projects].sort((a, b) =>
@@ -480,12 +515,10 @@ function appendProjectCardsChunk() {
   const html = slice.map(p => {
     const chars = getProjectData(p.id, 'personnages').length;
     const chaps = getProjectData(p.id, 'chapitres').length;
-    const uniName = getUniverseById(p.universeId)?.name || '';
     return `
       <div class="project-card" tabindex="0" onkeydown="if(event.key==='Enter')openProject('${p.id}')">
         <div class="project-card-name">${esc(p.name)}</div>
         <div class="project-card-desc">${esc(p.description) || '<span style="color:var(--gray-300)">Aucune description</span>'}</div>
-        ${uniName ? `<div class="project-card-date">🌐 Univers: ${esc(uniName)}</div>` : ''}
         <div class="project-card-meta">
           <div class="meta-item">👤 <strong>${chars}</strong> personnage${chars !== 1 ? 's' : ''}</div>
           <div class="meta-item">📖 <strong>${chaps}</strong> chapitre${chaps !== 1 ? 's' : ''}</div>
@@ -503,6 +536,68 @@ function appendProjectCardsChunk() {
   if (window._projectOffset < cache.length) {
     setTimeout(appendProjectCardsChunk, 0);
   }
+}
+
+function renderUniverseCards(searchQuery = '') {
+  const grid = $('universes-grid');
+  if (!grid) return;
+  const q = (searchQuery || '').trim().toLowerCase();
+  let universes = getUniverses().sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  if (q) {
+    universes = universes.filter(u => {
+      const projects = getProjects().filter(p => p.universeId === u.id);
+      const projectMatch = projects.some(p =>
+        p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
+      );
+      return u.name.toLowerCase().includes(q) || (u.description || '').toLowerCase().includes(q) || projectMatch;
+    });
+  }
+  if (universes.length === 0) {
+    grid.innerHTML = '';
+    return;
+  }
+  grid.innerHTML = universes.map(u => {
+    const books = getProjects().filter(p => p.universeId === u.id);
+    const booksCount = books.length;
+    return `
+      <div class="project-card" tabindex="0" onkeydown="if(event.key==='Enter')openUniverseGallery('${u.id}')">
+        <div class="project-card-name">🌐 ${esc(u.name)}</div>
+        <div class="project-card-desc">${esc(u.description) || '<span style="color:var(--gray-300)">Aucune description</span>'}</div>
+        <div class="project-card-meta">
+          <div class="meta-item">📚 <strong>${booksCount}</strong> livre${booksCount !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="project-card-date">Modifié le ${fmtDate(u.updatedAt || u.createdAt)}</div>
+        <div class="project-card-actions">
+          <button class="btn btn-primary" onclick="openUniverseGallery('${u.id}')">Entrer</button>
+          <button class="btn btn-secondary" onclick="openNewProjectModal('${u.id}')">+ Livre</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openUniverseGallery(universeId, options = {}) {
+  const skipHash = !!options.skipHash;
+  const universe = getUniverseById(universeId);
+  if (!universe) {
+    showToast('Univers introuvable', 'error');
+    return;
+  }
+  state.currentProjectId = null;
+  state.currentUniverseId = null;
+  state.homeUniverseId = universeId;
+  document.getElementById('home-page').classList.remove('hidden');
+  document.getElementById('project-page').classList.add('hidden');
+  document.getElementById('assistant-library-page')?.classList.add('hidden');
+  document.getElementById('project-page').classList.remove('page-mode');
+  if (!skipHash) {
+    const nextHash = `#/universe/${universeId}`;
+    if (location.hash !== nextHash) location.hash = nextHash;
+  }
+  renderProjectCards();
+}
+
+function leaveUniverseGallery() {
+  showHomePage();
 }
 
 // ============================================================
@@ -529,7 +624,7 @@ function renderHomeSearch() {
   if (!html) html = `<div class="result-item" tabindex="0">Aucun projet trouvé</div>`;
   resultsEl.innerHTML = html;
   resultsEl.classList.remove('hidden');
-  // also refresh grid with filtered list
+  renderUniverseCards(q);
   renderProjectCards(projects);
 }
 
@@ -543,9 +638,29 @@ document.addEventListener('click', e=>{
 // ============================================================
 function openNewProjectModal(selectedUniverseId = '') {
   if (typeof selectedUniverseId !== 'string') selectedUniverseId = '';
+  if (!selectedUniverseId && state.homeUniverseId) selectedUniverseId = state.homeUniverseId;
   document.getElementById('new-project-name').value = '';
   document.getElementById('new-project-desc').value = '';
-  renderUniverseSelectOptions('new-project-universe', selectedUniverseId);
+  const universeSelect = document.getElementById('new-project-universe');
+  const universeGroup = universeSelect?.closest('.form-group');
+  const lockToHomeUniverse = !!state.homeUniverseId && selectedUniverseId === state.homeUniverseId;
+  if (lockToHomeUniverse && universeSelect) {
+    const universe = getUniverseById(selectedUniverseId);
+    if (universe) {
+      universeSelect.innerHTML = `<option value="${universe.id}">${esc(universe.name)}</option>`;
+      universeSelect.value = universe.id;
+      universeSelect.disabled = true;
+      if (universeGroup) universeGroup.classList.add('hidden');
+    } else {
+      renderUniverseSelectOptions('new-project-universe', selectedUniverseId);
+      universeSelect.disabled = false;
+      if (universeGroup) universeGroup.classList.remove('hidden');
+    }
+  } else {
+    renderUniverseSelectOptions('new-project-universe', selectedUniverseId);
+    if (universeSelect) universeSelect.disabled = false;
+    if (universeGroup) universeGroup.classList.remove('hidden');
+  }
   openModal('modal-new-project');
   setTimeout(() => document.getElementById('new-project-name').focus(), 80);
 }
@@ -602,7 +717,11 @@ function createProject() {
 
   closeModal('modal-new-project');
   showToast('Projet créé !', 'success');
-  openProject(p.id);
+  if (universeId) {
+    openUniverseGallery(universeId);
+  } else {
+    openProject(p.id);
+  }
 }
 
 // ============================================================
@@ -615,6 +734,7 @@ function openProject(projectId, initialSection = 'dashboard', skipHash = false) 
 
   state.currentProjectId = projectId;
   state.currentUniverseId = project.universeId || null;
+  state.homeUniverseId = null;
 
   // ensure schema for existing data (add missing new fields with defaults)
   migrateProjectSchema(projectId);
@@ -767,6 +887,14 @@ function _parseHashRoute() {
   if (!hash || hash === '#') return { type: 'home' };
   if (hash === '#/home') return { type: 'home' };
 
+  const um = hash.match(/^#\/universe\/([^/]+)$/);
+  if (um) {
+    return {
+      type: 'universe',
+      universeId: um[1],
+    };
+  }
+
   const em = hash.match(/^#\/project\/([^/]+)\/(character|location|note|relation|playlist|event)(?:\/([^/]+))?(?:\/([^/]+))?$/);
   if (em) {
     return {
@@ -792,7 +920,13 @@ function _applyHashRoute() {
   const route = _parseHashRoute();
   if (!route) return;
   if (route.type === 'home') {
-    if (state.currentProjectId !== null) showHomePage();
+    if (state.currentProjectId !== null || state.homeUniverseId !== null) showHomePage({ skipHash: true });
+    return;
+  }
+  if (route.type === 'universe') {
+    if (state.currentProjectId !== null || state.homeUniverseId !== route.universeId) {
+      openUniverseGallery(route.universeId, { skipHash: true });
+    }
     return;
   }
   if (route.type === 'entity') {

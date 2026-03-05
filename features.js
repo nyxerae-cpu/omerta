@@ -1807,6 +1807,9 @@ const _ASSISTANT_GLOBAL_KNOWLEDGE_KEY = 'wb_assistant_global_knowledge';
 const _ASSISTANT_GLOBAL_CONTEXT_KEY = 'wb_assistant_global_context';
 const _ASSISTANT_GLOBAL_FACTS_KEY = 'wb_assistant_global_facts';
 const _ASSISTANT_PROJECT_UI_COMPACT_KEY = 'wb_assistant_project_ui_compact';
+const _ASSISTANT_DOC_CHUNK_CHARS = 3500;
+const _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE = 18;
+const _ASSISTANT_DOC_MAX_FILES_PER_IMPORT = 6;
 const _ASSISTANT_EYE_DEFS = [
   { key: 'bleu', variants: ['bleu', 'bleue', 'bleus', 'bleues'] },
   { key: 'vert', variants: ['vert', 'verte', 'verts', 'vertes'] },
@@ -1983,6 +1986,7 @@ function _assistantCategoryLabel(cat) {
     regle: 'Regle ecriture',
     univers: 'Regle univers',
     note: 'Note',
+    document: 'Document',
   };
   return map[cat] || cat;
 }
@@ -2621,7 +2625,7 @@ function renderAssistantHubLibrary() {
       listEl.innerHTML = rows.slice(0, 220).map((k, idx) => `
         <div class="assistant-kb-item">
           <div class="assistant-kb-meta">${esc(_assistantCategoryLabel(k.category || 'note'))} - ${esc(new Date(k.ts || Date.now()).toLocaleDateString('fr'))}</div>
-          <div>${esc(k.text || '')}</div>
+          <div>${esc(String(k.text || '').slice(0, 900))}${String(k.text || '').length > 900 ? ' ...' : ''}</div>
           <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" onclick="assistantHubDeleteKnowledge('${k.id || idx}')">Supprimer</button></div>
         </div>
       `).join('');
@@ -2629,11 +2633,11 @@ function renderAssistantHubLibrary() {
   }
 
   if (statsEl) {
-    const counts = { livre: 0, trope: 0, prenom: 0, regle: 0, univers: 0, note: 0 };
+    const counts = { livre: 0, trope: 0, prenom: 0, regle: 0, univers: 0, note: 0, document: 0 };
     rows.forEach(k => {
       if (counts[k.category] !== undefined) counts[k.category]++;
     });
-    statsEl.textContent = `Base globale: ${rows.length} entree(s) - Livres ${counts.livre}, Tropes ${counts.trope}, Prenoms ${counts.prenom}, Regles ${counts.regle + counts.univers}`;
+    statsEl.textContent = `Base globale: ${rows.length} entree(s) - Livres ${counts.livre}, Tropes ${counts.trope}, Prenoms ${counts.prenom}, Regles ${counts.regle + counts.univers}, Docs ${counts.document}`;
   }
 
   if (factsStatsEl) {
@@ -2912,7 +2916,13 @@ async function assistantHubImportKnowledgeFile(event) {
       const key = `${category}|${text.toLowerCase()}`;
       if (seen.has(key)) return;
       seen.add(key);
-      existing.push({ id: uid(), category, text, ts: r.ts || new Date().toISOString() });
+      existing.push({
+        id: uid(),
+        category,
+        text,
+        ts: r.ts || new Date().toISOString(),
+        meta: r && typeof r.meta === 'object' ? r.meta : null,
+      });
       added++;
     });
 
@@ -2947,6 +2957,137 @@ async function assistantHubImportKnowledgeFile(event) {
   } finally {
     event.target.value = '';
   }
+}
+
+function _assistantNormalizeDocText(text) {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\u0000/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function _assistantDocExt(name = '') {
+  const i = name.lastIndexOf('.');
+  if (i === -1) return '';
+  return name.slice(i + 1).toLowerCase();
+}
+
+function _assistantSplitDocChunks(text) {
+  const norm = _assistantNormalizeDocText(text);
+  if (!norm) return [];
+  const paras = norm.split(/\n\n+/).map(x => x.trim()).filter(Boolean);
+  const chunks = [];
+  let current = '';
+  paras.forEach(p => {
+    const candidate = current ? `${current}\n\n${p}` : p;
+    if (candidate.length <= _ASSISTANT_DOC_CHUNK_CHARS) {
+      current = candidate;
+      return;
+    }
+    if (current) chunks.push(current);
+    if (p.length <= _ASSISTANT_DOC_CHUNK_CHARS) {
+      current = p;
+      return;
+    }
+    for (let i = 0; i < p.length; i += _ASSISTANT_DOC_CHUNK_CHARS) {
+      chunks.push(p.slice(i, i + _ASSISTANT_DOC_CHUNK_CHARS));
+    }
+    current = '';
+  });
+  if (current) chunks.push(current);
+  return chunks.slice(0, _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE);
+}
+
+async function _assistantExtractPdfText(file) {
+  if (!window.pdfjsLib) throw new Error('Lecteur PDF non disponible');
+  try {
+    if (window.pdfjsLib.GlobalWorkerOptions) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  } catch (_) {
+    // Ignore worker setup issues and let pdf.js fallback.
+  }
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const txt = (content.items || []).map(it => it.str || '').join(' ').trim();
+    if (txt) pages.push(`Page ${p}: ${txt}`);
+  }
+  return pages.join('\n\n');
+}
+
+async function _assistantExtractDocxText(file) {
+  if (!window.mammoth || !window.mammoth.extractRawText) throw new Error('Lecteur DOCX non disponible');
+  const buf = await file.arrayBuffer();
+  const out = await window.mammoth.extractRawText({ arrayBuffer: buf });
+  return String(out && out.value ? out.value : '');
+}
+
+async function _assistantExtractDocumentText(file) {
+  const ext = _assistantDocExt(file && file.name ? file.name : '');
+  if (ext === 'pdf') return _assistantExtractPdfText(file);
+  if (ext === 'docx') return _assistantExtractDocxText(file);
+  if (['txt', 'md', 'rtf'].includes(ext)) return file.text();
+  if (ext === 'doc') {
+    throw new Error('Le format .doc ancien n\'est pas supporte ici. Convertis en .docx ou .pdf.');
+  }
+  throw new Error(`Format non supporte: .${ext || 'inconnu'}`);
+}
+
+async function assistantHubImportDocumentFiles(event) {
+  const files = Array.from((event.target && event.target.files) || []);
+  if (!files.length) return;
+
+  const selected = files.slice(0, _ASSISTANT_DOC_MAX_FILES_PER_IMPORT);
+  const existing = _assistantGetGlobalKnowledge();
+  let addedChunks = 0;
+  const failures = [];
+  const now = new Date().toISOString();
+
+  for (const file of selected) {
+    try {
+      const text = await _assistantExtractDocumentText(file);
+      const chunks = _assistantSplitDocChunks(text);
+      if (!chunks.length) {
+        failures.push(`${file.name}: aucun texte detecte`);
+        continue;
+      }
+      chunks.forEach((chunk, i) => {
+        existing.push({
+          id: uid(),
+          category: 'document',
+          text: chunk,
+          ts: now,
+          meta: {
+            fileName: file.name,
+            mimeType: file.type || '',
+            size: Number(file.size || 0),
+            chunkIndex: i + 1,
+            chunkTotal: chunks.length,
+          },
+        });
+        addedChunks++;
+      });
+    } catch (err) {
+      failures.push(`${file.name}: ${err && err.message ? err.message : 'erreur'}`);
+    }
+  }
+
+  _assistantSaveGlobalKnowledge(existing);
+  renderAssistantHubLibrary();
+
+  if (addedChunks > 0) {
+    showToast(`Import documents termine: ${addedChunks} extrait(s) ajoute(s)`, 'success');
+  }
+  if (failures.length) {
+    showToast(`Fichiers ignores: ${failures.slice(0, 2).join(' | ')}`, 'error');
+  }
+  event.target.value = '';
 }
 
 function assistantDeleteKnowledge(id, source) {
@@ -3919,6 +4060,72 @@ function _assistantProjectSummary() {
   return `Etat du projet: ${chars} perso(s), ${locs} lieu(x), ${rels} relation(s), ${chaps} chapitre(s), ${scenes} scene(s).`;
 }
 
+function _assistantQueryTokens(text) {
+  const stop = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'ou', 'est', 'sont', 'dans', 'avec', 'pour', 'sur', 'par', 'que', 'qui', 'quoi', 'comment', 'pourquoi', 'quand', 'mais', 'donc', 'car', 'au', 'aux']);
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 3 && !stop.has(t));
+}
+
+function _assistantEscapeRegex(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function _assistantDocSnippet(text, tokens) {
+  const src = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!src) return '';
+  let idx = -1;
+  for (const token of tokens) {
+    idx = src.toLowerCase().indexOf(token.toLowerCase());
+    if (idx !== -1) break;
+  }
+  if (idx === -1) return src.slice(0, 260);
+  const start = Math.max(0, idx - 90);
+  const end = Math.min(src.length, idx + 220);
+  return src.slice(start, end);
+}
+
+function _assistantAnswerFromDocuments(text, knowledge) {
+  const docs = (knowledge || []).filter(k => k && k.category === 'document' && k.text);
+  if (!docs.length) return '';
+  const tokens = _assistantQueryTokens(text);
+  if (!tokens.length) return '';
+
+  const ranked = docs.map(d => {
+    const low = String(d.text || '').toLowerCase();
+    let score = 0;
+    tokens.forEach(t => {
+      if (low.includes(t)) score += 2;
+      const re = new RegExp(`\\b${_assistantEscapeRegex(t)}\\b`, 'g');
+      const cnt = (low.match(re) || []).length;
+      score += Math.min(cnt, 4);
+    });
+    return { d, score };
+  }).filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  if (!ranked.length) return '';
+
+  const lines = ranked.map((x, i) => {
+    const meta = x.d.meta || {};
+    const source = meta.fileName ? `${meta.fileName}${meta.chunkTotal ? ` (${meta.chunkIndex || 1}/${meta.chunkTotal})` : ''}` : `Document ${i + 1}`;
+    const snippet = _assistantDocSnippet(x.d.text, tokens);
+    return `${i + 1}. Source: ${source}\n   Extrait: ${snippet}`;
+  });
+
+  return [
+    `J'ai trouve des passages utiles dans tes documents importes pour: "${text}".`,
+    ...lines,
+    'Si tu veux, je peux te faire un resume cible de ces sources (personnages, timeline, regles, lore, etc.).',
+  ].join('\n');
+}
+
 function assistantBuildResponse(text, knowledge, contextText = '') {
   const q = text.toLowerCase();
 
@@ -3986,6 +4193,9 @@ function assistantBuildResponse(text, knowledge, contextText = '') {
     }
     return `J\'ai ${regs.length} regle(s) de style en base. Envoie un extrait et je te propose une version dialogue plus naturelle, tout en respectant tes regles.`;
   }
+
+  const docAnswer = _assistantAnswerFromDocuments(text, knowledge);
+  if (docAnswer) return docAnswer;
 
   return [
     'Je peux t\'aider en mode discussion naturelle, avec les donnees de ton projet.',
