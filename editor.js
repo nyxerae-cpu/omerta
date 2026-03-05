@@ -48,6 +48,10 @@ function htmlWordCount(quill) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+function _isEditorBackgrounded() {
+  return !!window.__WB_APP_IN_BACKGROUND || document.hidden;
+}
+
 // ============================================================
 // OPEN CHAPTER EDITOR
 // ============================================================
@@ -376,7 +380,7 @@ function saveSceneEditor() {
 function _startAutoSave() {
   _stopAutoSave();
   editorState.autoSaveTimer = setInterval(() => {
-    if (document.hidden) return;
+    if (_isEditorBackgrounded()) return;
     if (editorState.isDirty) _saveCurrentEditor();
   }, 30000);
 }
@@ -410,7 +414,7 @@ function _setAutosaveStatus(status) {
 
 // Periodic "saved X seconds ago" update
 setInterval(() => {
-  if (document.hidden) return;
+  if (_isEditorBackgrounded()) return;
   if (!editorState.type || !editorState.lastSaved || editorState.isDirty) return;
   const pfx = editorState.type === 'chapter' ? 'ce' : 'se';
   const el  = document.getElementById(pfx + '-autosave');
@@ -592,7 +596,7 @@ function _startSessionStats() {
   if (editorState.sessionTimer) clearInterval(editorState.sessionTimer);
   _updateSessionStats();
   editorState.sessionTimer = setInterval(() => {
-    if (document.hidden) return;
+    if (_isEditorBackgrounded()) return;
     _updateSessionStats();
   }, 10000);
 }
@@ -920,10 +924,21 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('visibilitychange', () => {
   if (!editorState.type) return;
-  if (document.hidden) {
+  if (_isEditorBackgrounded()) {
     if (editorState.isDirty) _saveCurrentEditor();
     return;
   }
+  _updateStats();
+  _updateSessionStats();
+});
+
+document.addEventListener('wb:app-pause', () => {
+  if (!editorState.type) return;
+  if (editorState.isDirty) _saveCurrentEditor();
+});
+
+document.addEventListener('wb:app-resume', () => {
+  if (!editorState.type) return;
   _updateStats();
   _updateSessionStats();
 });

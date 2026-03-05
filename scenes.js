@@ -1500,19 +1500,33 @@ function deleteGlobalMusicConfirm(musicId) {
 // ============================================================
 let _globalAudioPlayer = null;
 
+function stopGlobalMusicPlayback() {
+  if (!_globalAudioPlayer) return;
+  try {
+    _globalAudioPlayer.pause();
+    _globalAudioPlayer.currentTime = 0;
+  } catch (err) {
+    console.warn('Audio stop failed:', err);
+  }
+  _globalAudioPlayer = null;
+}
+
 function playGlobalMusic(musicId) {
   const m = getGlobalMusic().find(x => x.id === musicId);
   if (!m || !m.audioData) return;
 
-  if (_globalAudioPlayer) {
-    _globalAudioPlayer.pause();
-    _globalAudioPlayer = null;
-  }
+  stopGlobalMusicPlayback();
 
   _globalAudioPlayer = new Audio(m.audioData);
+  _globalAudioPlayer.preload = 'auto';
   _globalAudioPlayer.play().catch(() => showToast('Lecture impossible', 'error'));
   showToast(`Lecture : ${m.titre}`, 'success');
 }
+
+document.addEventListener('wb:app-pause', stopGlobalMusicPlayback);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopGlobalMusicPlayback();
+});
 
 // ============================================================
 // COPY GLOBAL MUSIC TO PROJECT (as playlist track)

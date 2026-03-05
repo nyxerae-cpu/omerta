@@ -25,8 +25,69 @@ const perfState = {
   lowPower: false,
 };
 
+const lifecycleState = {
+  isBackgrounded: false,
+  lastPauseAt: 0,
+  lastResumeAt: 0,
+};
+
+window.__WB_APP_IN_BACKGROUND = false;
+
 function isAppActive() {
-  return document.visibilityState === 'visible' && document.hasFocus();
+  return !lifecycleState.isBackgrounded && document.visibilityState !== 'hidden';
+}
+
+function setAppBackgrounded(isBackgrounded, source = 'unknown') {
+  const next = !!isBackgrounded;
+  if (lifecycleState.isBackgrounded === next) return;
+
+  lifecycleState.isBackgrounded = next;
+  window.__WB_APP_IN_BACKGROUND = next;
+
+  if (next) {
+    lifecycleState.lastPauseAt = Date.now();
+    document.dispatchEvent(new CustomEvent('wb:app-pause', { detail: { source } }));
+    return;
+  }
+
+  lifecycleState.lastResumeAt = Date.now();
+  document.dispatchEvent(new CustomEvent('wb:app-resume', { detail: { source } }));
+}
+
+function initAppLifecycle() {
+  const updateFromVisibility = () => {
+    setAppBackgrounded(document.visibilityState === 'hidden', 'visibilitychange');
+  };
+
+  document.addEventListener('visibilitychange', updateFromVisibility);
+  document.addEventListener('pause', () => setAppBackgrounded(true, 'cordova-pause'));
+  document.addEventListener('resume', () => setAppBackgrounded(false, 'cordova-resume'));
+  window.addEventListener('pagehide', () => setAppBackgrounded(true, 'pagehide'));
+  window.addEventListener('pageshow', () => setAppBackgrounded(false, 'pageshow'));
+
+  updateFromVisibility();
+}
+
+function initRuntimeGuards() {
+  let lastToastAt = 0;
+  const maybeWarnUser = () => {
+    const now = Date.now();
+    if ((now - lastToastAt) < 4000) return;
+    lastToastAt = now;
+    showToast('Un incident a ete detecte, l\'app reste active.', 'error');
+  };
+
+  window.addEventListener('error', event => {
+    const msg = event && event.message ? event.message : 'Erreur inconnue';
+    console.error('[WB] Runtime error:', msg, event && event.error ? event.error : '');
+    maybeWarnUser();
+  });
+
+  window.addEventListener('unhandledrejection', event => {
+    const reason = event && event.reason ? event.reason : 'Promise rejetee sans details';
+    console.error('[WB] Unhandled rejection:', reason);
+    maybeWarnUser();
+  });
 }
 
 function shouldUseLowPowerMode() {
@@ -347,6 +408,8 @@ function initAccessibilityHelpers() {
 document.addEventListener('DOMContentLoaded', initAccessibilityHelpers);
 document.addEventListener('DOMContentLoaded', initPwaInstall);
 document.addEventListener('DOMContentLoaded', initCordovaBridge);
+document.addEventListener('DOMContentLoaded', initAppLifecycle);
+document.addEventListener('DOMContentLoaded', initRuntimeGuards);
 
 // simple debounce helper
 function debounce(fn, delay) {
@@ -3786,6 +3849,12 @@ function scheduleDueChecks(enable=true) {
   // initial run
   if (isAppActive()) checkDueTasksOnce();
 }
+
+document.addEventListener('wb:app-pause', () => scheduleDueChecks(false));
+document.addEventListener('wb:app-resume', () => {
+  if (!state.currentProjectId) return;
+  scheduleDueChecks(true);
+});
 
 // run checks when opening a project
 const oldOpenProject = window.openProject;
