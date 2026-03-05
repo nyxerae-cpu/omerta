@@ -541,10 +541,11 @@ document.addEventListener('click', e=>{
 // ============================================================
 // NEW PROJECT MODAL
 // ============================================================
-function openNewProjectModal() {
+function openNewProjectModal(selectedUniverseId = '') {
+  if (typeof selectedUniverseId !== 'string') selectedUniverseId = '';
   document.getElementById('new-project-name').value = '';
   document.getElementById('new-project-desc').value = '';
-  renderUniverseSelectOptions('new-project-universe');
+  renderUniverseSelectOptions('new-project-universe', selectedUniverseId);
   openModal('modal-new-project');
   setTimeout(() => document.getElementById('new-project-name').focus(), 80);
 }
@@ -565,8 +566,16 @@ function createUniverse() {
   const list = getUniverses();
   list.push(u);
   saveUniverses(list);
+
+  const projectModal = document.getElementById('modal-new-project');
+  const projectModalWasOpen = projectModal && !projectModal.classList.contains('hidden');
+
   closeModal('modal-new-universe');
-  renderUniverseSelectOptions('new-project-universe', u.id);
+  if (projectModalWasOpen) {
+    renderUniverseSelectOptions('new-project-universe', u.id);
+  } else {
+    openNewProjectModal(u.id);
+  }
   showToast('Univers créé', 'success');
 }
 
