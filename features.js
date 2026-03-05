@@ -3000,17 +3000,78 @@ function _assistantSplitDocChunks(text) {
   return chunks.slice(0, _ASSISTANT_DOC_MAX_CHUNKS_PER_FILE);
 }
 
+function _assistantLoadScriptOnce(url) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src=\"${url}\"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Echec chargement script: ${url}`)), { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onload = () => {
+      s.dataset.loaded = '1';
+      resolve();
+    };
+    s.onerror = () => reject(new Error(`Echec chargement script: ${url}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function _assistantEnsurePdfJsLoaded() {
+  if (window.pdfjsLib && typeof window.pdfjsLib.getDocument === 'function') return;
+  const candidates = [
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+  ];
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      await _assistantLoadScriptOnce(url);
+      if (window.pdfjsLib && typeof window.pdfjsLib.getDocument === 'function') return;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw new Error(lastErr ? lastErr.message : 'Lecteur PDF non disponible');
+}
+
+async function _assistantEnsureMammothLoaded() {
+  if (window.mammoth && typeof window.mammoth.extractRawText === 'function') return;
+  const candidates = [
+    'https://unpkg.com/mammoth/mammoth.browser.min.js',
+    'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js',
+  ];
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      await _assistantLoadScriptOnce(url);
+      if (window.mammoth && typeof window.mammoth.extractRawText === 'function') return;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw new Error(lastErr ? lastErr.message : 'Lecteur DOCX non disponible');
+}
+
 async function _assistantExtractPdfText(file) {
-  if (!window.pdfjsLib) throw new Error('Lecteur PDF non disponible');
+  await _assistantEnsurePdfJsLoaded();
   try {
     if (window.pdfjsLib.GlobalWorkerOptions) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      // Prefer no worker in constrained standalone/PWA contexts.
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = '';
     }
   } catch (_) {
     // Ignore worker setup issues and let pdf.js fallback.
   }
   const buf = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await window.pdfjsLib.getDocument({ data: buf, disableWorker: true }).promise;
   const pages = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -3022,7 +3083,7 @@ async function _assistantExtractPdfText(file) {
 }
 
 async function _assistantExtractDocxText(file) {
-  if (!window.mammoth || !window.mammoth.extractRawText) throw new Error('Lecteur DOCX non disponible');
+  await _assistantEnsureMammothLoaded();
   const buf = await file.arrayBuffer();
   const out = await window.mammoth.extractRawText({ arrayBuffer: buf });
   return String(out && out.value ? out.value : '');

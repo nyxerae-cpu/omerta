@@ -85,6 +85,12 @@ function handleCordovaBackButton(event) {
 
   if (closeTopVisibleOverlay()) return;
 
+  const assistantPage = document.getElementById('assistant-library-page');
+  if (assistantPage && !assistantPage.classList.contains('hidden')) {
+    closeAssistantLibrary();
+    return;
+  }
+
   if (window.editorState && editorState.type === 'chapter' && typeof closeChapterEditor === 'function') {
     closeChapterEditor();
     return;
@@ -96,6 +102,11 @@ function handleCordovaBackButton(event) {
 
   if (state.currentProjectId && state.currentSection && state.currentSection !== 'dashboard') {
     navigateTo('dashboard');
+    return;
+  }
+
+  if (!state.currentProjectId && state.homeUniverseId) {
+    leaveUniverseGallery();
     return;
   }
 
@@ -197,17 +208,41 @@ function $(id) {
 // STORAGE HELPERS
 // ============================================================
 function getProjects() {
-  return JSON.parse(localStorage.getItem('projets_liste') || '[]');
+  try {
+    const raw = localStorage.getItem('projets_liste');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('Projects storage parse failed:', err);
+    return [];
+  }
 }
 function saveProjects(list) {
-  localStorage.setItem('projets_liste', JSON.stringify(list));
+  try {
+    localStorage.setItem('projets_liste', JSON.stringify(Array.isArray(list) ? list : []));
+  } catch (err) {
+    console.error('Projects storage write failed:', err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder les projets', 'error');
+  }
 }
 
 function getUniverses() {
-  return JSON.parse(localStorage.getItem('univers_liste') || '[]');
+  try {
+    const raw = localStorage.getItem('univers_liste');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('Universes storage parse failed:', err);
+    return [];
+  }
 }
 function saveUniverses(list) {
-  localStorage.setItem('univers_liste', JSON.stringify(list));
+  try {
+    localStorage.setItem('univers_liste', JSON.stringify(Array.isArray(list) ? list : []));
+  } catch (err) {
+    console.error('Universes storage write failed:', err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder les univers', 'error');
+  }
 }
 function getUniverseById(universeId) {
   if (!universeId) return null;
@@ -215,10 +250,21 @@ function getUniverseById(universeId) {
 }
 
 function getUniverseData(universeId, type) {
-  return JSON.parse(localStorage.getItem(`univers_${universeId}_${type}`) || '[]');
+  try {
+    const raw = localStorage.getItem(`univers_${universeId}_${type}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.warn('Universe data parse failed:', universeId, type, err);
+    return [];
+  }
 }
 function saveUniverseData(universeId, type, data) {
-  localStorage.setItem(`univers_${universeId}_${type}`, JSON.stringify(data));
+  try {
+    localStorage.setItem(`univers_${universeId}_${type}`, JSON.stringify(data));
+  } catch (err) {
+    console.error('Universe data write failed:', universeId, type, err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder ces donnees univers', 'error');
+  }
 }
 
 function getProjectUniverseId(projectId = state.currentProjectId) {
@@ -291,10 +337,21 @@ function renderUniverseSelectOptions(selectId, selectedUniverseId = '') {
 }
 
 function getProjectData(projectId, type) {
-  return JSON.parse(localStorage.getItem(`projet_${projectId}_${type}`) || '[]');
+  try {
+    const raw = localStorage.getItem(`projet_${projectId}_${type}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.warn('Project data parse failed:', projectId, type, err);
+    return [];
+  }
 }
 function saveProjectData(projectId, type, data) {
-  localStorage.setItem(`projet_${projectId}_${type}`, JSON.stringify(data));
+  try {
+    localStorage.setItem(`projet_${projectId}_${type}`, JSON.stringify(data));
+  } catch (err) {
+    console.error('Project data write failed:', projectId, type, err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder les donnees du projet', 'error');
+  }
 }
 function clearProjectData(projectId) {
   ['personnages', 'lieux', 'chapitres', 'scenes', 'playlists', 'events', 'notes', 'relations', 'manuscrit', 'prefs', 'customSections'].forEach(t =>
@@ -303,10 +360,22 @@ function clearProjectData(projectId) {
 }
 
 function getProjectPrefs(projectId) {
-  return JSON.parse(localStorage.getItem(`projet_${projectId}_prefs`) || '{}');
+  try {
+    const raw = localStorage.getItem(`projet_${projectId}_prefs`);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (err) {
+    console.warn('Project prefs parse failed:', projectId, err);
+    return {};
+  }
 }
 function saveProjectPrefs(projectId, prefs) {
-  localStorage.setItem(`projet_${projectId}_prefs`, JSON.stringify(prefs));
+  try {
+    localStorage.setItem(`projet_${projectId}_prefs`, JSON.stringify(prefs || {}));
+  } catch (err) {
+    console.error('Project prefs write failed:', projectId, err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder les preferences', 'error');
+  }
 }
 
 function uid() {
@@ -1038,6 +1107,7 @@ function _parseHashRoute() {
   const hash = (location.hash || '').trim();
   if (!hash || hash === '#') return { type: 'home' };
   if (hash === '#/home') return { type: 'home' };
+  if (hash === '#/assistant-library') return { type: 'assistant-library' };
 
   const um = hash.match(/^#\/universe\/([^/]+)$/);
   if (um) {
@@ -1079,6 +1149,10 @@ function _applyHashRoute() {
     if (state.currentProjectId !== null || state.homeUniverseId !== route.universeId) {
       openUniverseGallery(route.universeId, { skipHash: true });
     }
+    return;
+  }
+  if (route.type === 'assistant-library') {
+    openAssistantLibrary({ skipHash: true });
     return;
   }
   if (route.type === 'entity') {
@@ -1131,7 +1205,8 @@ function _restoreSectionHashRoute() {
 
 let _assistantLibraryPreviousPage = 'home';
 
-function openAssistantLibrary() {
+function openAssistantLibrary(options = {}) {
+  const skipHash = !!options.skipHash;
   const homePage = document.getElementById('home-page');
   const projectPage = document.getElementById('project-page');
   const assistantLibraryPage = document.getElementById('assistant-library-page');
@@ -1142,6 +1217,10 @@ function openAssistantLibrary() {
   if (projectPage) projectPage.classList.add('hidden');
   assistantLibraryPage.classList.remove('hidden');
 
+  if (!skipHash && location.hash !== '#/assistant-library') {
+    location.hash = '#/assistant-library';
+  }
+
   if (typeof renderAssistantHubLibrary === 'function') renderAssistantHubLibrary();
 
   const kbInput = document.getElementById('assistant-hub-kb-input');
@@ -1151,15 +1230,18 @@ function openAssistantLibrary() {
   }
 }
 
-function closeAssistantLibrary() {
+function closeAssistantLibrary(options = {}) {
+  const skipHash = !!options.skipHash;
   const assistantLibraryPage = document.getElementById('assistant-library-page');
   if (assistantLibraryPage) assistantLibraryPage.classList.add('hidden');
 
   if (_assistantLibraryPreviousPage === 'project' && state.currentProjectId) {
     document.getElementById('project-page')?.classList.remove('hidden');
+    if (!skipHash) _restoreSectionHashRoute();
     return;
   }
   document.getElementById('home-page')?.classList.remove('hidden');
+  if (!skipHash && location.hash !== '#/home') location.hash = '#/home';
 }
 
 // ============================================================
