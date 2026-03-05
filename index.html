@@ -30,7 +30,6 @@
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <button class="btn btn-ghost" onclick="openBibliotheque()">📚 Bibliothèque</button>
-      <button class="btn btn-ghost" onclick="openAssistantLibrary()">🤝 Bibliothèque Assistant</button>
       <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">📲 Installer l'app</button>
       <button class="btn btn-secondary btn-new-universe">+ Nouvel univers</button>
       <button class="btn btn-primary btn-new-project">+ Nouveau projet</button>
@@ -80,7 +79,6 @@
         <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
       </div>
       <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">📚 Bibliothèque</button>
-      <button class="btn btn-ghost" onclick="openAssistantLibrary()" style="font-size:13px">🤝 Bibliothèque Assistant</button>
       <div class="dropdown" id="dropdown-container">
         <button class="btn btn-ghost dropdown-btn" onclick="toggleDropdown()">
           Changer de projet
@@ -148,15 +146,6 @@
         <button class="nav-item" data-section="timeline" onclick="navigateTo('timeline')">
           <span class="nav-icon">📅</span>
           <span class="nav-label">Timeline</span>
-        </button>
-        <!-- Notes -->
-        <button class="nav-item" data-section="notes" onclick="navigateTo('notes')">
-          <span class="nav-icon">📝</span>
-          <span class="nav-label">Notes</span>
-        </button>
-        <button class="nav-item" data-section="assistant" onclick="navigateTo('assistant')">
-          <span class="nav-icon">🤝</span>
-          <span class="nav-label">Assistant</span>
         </button>
         <!-- Citations -->
         <button class="nav-item" data-section="citations" onclick="navigateTo('citations')">
@@ -487,73 +476,6 @@
         <div id="timeline-list"></div>
       </section>
 
-      <!-- Notes -->
-      <section id="section-notes" class="content-section hidden">
-        <div class="section-header">
-          <h2>Notes</h2>
-          <button class="btn btn-primary" onclick="openNoteModal()">+ Ajouter</button>
-        </div>
-        <input type="text" id="notes-search" class="form-control" placeholder="Rechercher dans les notes..." oninput="debouncedRenderNotes()" style="margin-bottom:12px;">
-        <div id="notes-list"></div>
-      </section>
-
-      <!-- Assistant projet (chat d'abord, paramètres ensuite) -->
-      <section id="section-assistant" class="content-section hidden">
-        <div class="section-header">
-          <h2>Assistant du projet</h2>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="openAssistantLibrary()">Ouvrir la Bibliothèque Assistant</button>
-            <button id="assistant-toggle-advanced-btn" class="btn btn-secondary btn-sm" onclick="assistantToggleAdvancedUI()">Afficher paramètres</button>
-          </div>
-        </div>
-
-        <div id="assistant-project-advanced" class="assistant-panel hidden" style="margin-bottom:12px">
-          <h3 style="margin-bottom:10px">Paramètres</h3>
-          <div class="assistant-top-controls" style="grid-template-columns:repeat(2,minmax(220px,1fr));margin-bottom:10px">
-            <div class="form-group" style="margin:0">
-              <label for="assistant-scope">Portée des données</label>
-              <select id="assistant-scope" class="form-control" onchange="renderAssistant()">
-                <option value="project">Livre courant</option>
-                <option value="universe">Tous les tomes de l'univers</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label for="assistant-chat-mode">Mode discussion</label>
-              <select id="assistant-chat-mode" class="form-control" onchange="assistantUpdateChatModeUI()">
-                <option value="coach">Coach narratif</option>
-                <option value="persona">Discussion avec un perso</option>
-                <option value="group">Discussion de groupe</option>
-              </select>
-            </div>
-            <div class="form-group" id="assistant-mode-persona-wrap" style="margin:0;display:none">
-              <label for="assistant-persona-id">Personnage</label>
-              <select id="assistant-persona-id" class="form-control"></select>
-            </div>
-            <div class="form-group" id="assistant-mode-group-wrap" style="margin:0;display:none">
-              <label for="assistant-group-ids">Groupe</label>
-              <select id="assistant-group-ids" class="form-control" multiple style="height:92px"></select>
-            </div>
-          </div>
-        </div>
-
-        <div class="assistant-panel assistant-chat-panel">
-          <h3>Conversation</h3>
-          <p class="settings-hint" style="margin-bottom:10px">Mode classique: ecris ton message et l'assistant repond.</p>
-
-          <div class="assistant-quick-actions" style="margin-bottom:10px">
-            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Je veux créer un perso mais je n\'ai pas d\'idée')">Idées perso</button>
-            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Je suis bloqué sur ma scène, aide-moi')">Débloquer scène</button>
-            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Propose-moi 5 twists cohérents')">Twists</button>
-          </div>
-
-          <div id="assistant-chat" class="assistant-chat"></div>
-
-          <div class="assistant-input-row">
-            <input type="text" id="assistant-chat-input" class="form-control" placeholder="Ecris ton message..." onkeydown="if(event.key==='Enter'){assistantSendMessage();}">
-            <button class="btn btn-primary" onclick="assistantSendMessage()">Envoyer</button>
-          </div>
-        </div>
-      </section>
 
       <!-- Paramètres -->
       <section id="section-parametres" class="content-section hidden">
@@ -740,81 +662,6 @@
       </section>
 
     </main>
-  </div>
-</div>
-
-<!-- ===================== ASSISTANT LIBRARY PAGE ===================== -->
-<div id="assistant-library-page" class="page hidden">
-  <div class="assistant-library-header">
-    <div class="assistant-library-header-left">
-      <button class="btn btn-ghost" onclick="closeAssistantLibrary()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        Retour
-      </button>
-      <div>
-        <h1 class="app-title" style="color:var(--gray-800);font-size:20px">Bibliothèque Assistant</h1>
-        <p class="app-subtitle">Base globale de référence pour l'assistant, sans ouvrir de projet</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="assistant-library-content">
-    <div class="assistant-panel">
-      <h3>Connaissances globales</h3>
-      <p class="settings-hint" style="margin-bottom:10px">Ajoute tes règles, tropes, notes universelles et sources. Ces données restent disponibles partout.</p>
-
-      <div class="form-group">
-        <label for="assistant-hub-kb-category">Catégorie</label>
-        <select id="assistant-hub-kb-category" class="form-control">
-          <option value="livre">Livre / source</option>
-          <option value="trope">Trope</option>
-          <option value="prenom">Prénom</option>
-          <option value="regle">Règle d'écriture</option>
-          <option value="univers">Règle d'univers</option>
-          <option value="note">Note libre</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="assistant-hub-kb-input">Contenu</label>
-        <textarea id="assistant-hub-kb-input" class="form-control" rows="3" placeholder="Ex: Eviter les descriptions longues avant un dialogue tendu"></textarea>
-      </div>
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <button class="btn btn-primary btn-sm" onclick="assistantHubAddKnowledge()">+ Ajouter</button>
-        <button class="btn btn-secondary btn-sm" onclick="assistantHubExportKnowledge()">⬇ Export JSON</button>
-        <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-          ⬆ Import JSON
-          <input type="file" id="assistant-hub-kb-file" accept=".json" onchange="assistantHubImportKnowledgeFile(event)" style="display:none">
-        </label>
-        <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-          📄 Import docs
-          <input type="file" id="assistant-hub-doc-file" accept=".pdf,.docx,.doc,.txt,.md,.rtf,.epub" multiple onchange="assistantHubImportDocumentFiles(event)" style="display:none">
-        </label>
-        <button class="btn btn-ghost btn-sm" onclick="assistantHubClearKnowledgeConfirm()">Vider</button>
-      </div>
-
-      <div class="form-group">
-        <label for="assistant-hub-bulk-input">Import rapide (une ligne = une entrée)</label>
-        <textarea id="assistant-hub-bulk-input" class="form-control" rows="4" placeholder="Ex:\nregle: priorité au conflit\ntrope: enemies to lovers"></textarea>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="assistantHubImportBulk()">Importer en masse</button>
-
-      <div id="assistant-hub-kb-stats" class="settings-hint" style="margin:12px 0 8px"></div>
-      <div id="assistant-hub-kb-list" class="assistant-kb-list"></div>
-    </div>
-
-    <div class="assistant-panel">
-      <h3>Contexte global assistant</h3>
-      <p class="settings-hint" style="margin-bottom:10px">Ajoute la direction narrative générale, le ton, les contraintes, les interdits.</p>
-      <div class="form-group">
-        <textarea id="assistant-hub-global-context" class="form-control" rows="7" placeholder="Ex: Thriller romantique, narration en focalisation interne, pas de deus ex machina..."></textarea>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="assistantHubSaveContext()">Enregistrer le contexte</button>
-      </div>
-      <div id="assistant-hub-facts-stats" class="settings-hint" style="margin-top:12px"></div>
-    </div>
   </div>
 </div>
 
@@ -1920,59 +1767,6 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-event')">Annuler</button>
       <button class="btn btn-primary" onclick="saveEvent()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- Note modal -->
-<div id="modal-note" class="entity-page hidden">
-  <div class="modal modal-lg">
-    <div class="modal-header">
-      <h3 id="modal-note-title">Nouvelle note</h3>
-      <button class="modal-close" onclick="closeModal('modal-note')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label>Titre *</label>
-        <input type="text" id="note-title" class="form-control">
-      </div>
-      <div class="form-group">
-        <label>Type</label>
-        <select id="note-type" class="form-control">
-          <option value="idea">💡 Idée</option>
-          <option value="task">☐ Tâche</option>
-          <option value="warning">⚠️ Attention</option>
-          <option value="quote">📖 Citation</option>
-          <option value="goal">🎯 Objectif</option>
-        </select>
-      </div>
-      <div id="note-task-area" class="form-group hidden">
-        <label>Checklist</label>
-        <div id="note-tasks-list" style="margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="note-new-task" class="form-control" placeholder="Nouvelle tâche...">
-          <button class="btn btn-secondary" onclick="addNoteTaskInput()">Ajouter</button>
-        </div>
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-          <label>Échéance&nbsp;: <input type="date" id="note-due" class="form-control" style="display:inline-block;width:auto;margin-left:8px"></label>
-          <label style="margin-left:12px"><input type="checkbox" id="note-remind"> Rappel</label>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Contenu</label>
-        <textarea id="note-content" class="form-control" rows="4" placeholder="Supportez le markdown : **gras**, *italique*, `code`"></textarea>
-      </div>
-      <div class="form-group">
-        <label>Tags</label>
-        <input type="text" id="note-tags" class="form-control" placeholder="séparés par virgules">
-      </div>
-      <div class="form-group">
-        <label><input type="checkbox" id="note-pinned"> Épingler</label>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-note')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveNote()">Enregistrer</button>
     </div>
   </div>
 </div>

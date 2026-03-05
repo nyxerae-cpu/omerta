@@ -85,12 +85,6 @@ function handleCordovaBackButton(event) {
 
   if (closeTopVisibleOverlay()) return;
 
-  const assistantPage = document.getElementById('assistant-library-page');
-  if (assistantPage && !assistantPage.classList.contains('hidden')) {
-    closeAssistantLibrary();
-    return;
-  }
-
   if (window.editorState && editorState.type === 'chapter' && typeof closeChapterEditor === 'function') {
     closeChapterEditor();
     return;
@@ -267,6 +261,54 @@ function saveUniverseData(universeId, type, data) {
   }
 }
 
+function purgeLegacyAssistantStorage() {
+  try {
+    const toDelete = [];
+    const keyMatchers = [
+      /^wb_assistant_/,
+      /^projet_[^_]+_assistant$/,
+      /^univers_[^_]+_assistant_(knowledge|facts|context)$/,
+    ];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (keyMatchers.some(re => re.test(key))) toDelete.push(key);
+    }
+
+    toDelete.forEach(key => localStorage.removeItem(key));
+
+    // Cleanup persisted route if it still points to removed assistant/notes pages.
+    const lastRouteRaw = localStorage.getItem(LAST_ROUTE_KEY);
+    if (lastRouteRaw) {
+      try {
+        const parsed = JSON.parse(lastRouteRaw);
+        const hash = String((parsed && parsed.hash) || '');
+        const removedRoute = hash === '#/assistant-library'
+          || /#\/project\/[^/]+\/assistant$/.test(hash)
+          || /#\/project\/[^/]+\/notes$/.test(hash)
+          || /#\/project\/[^/]+\/note\//.test(hash);
+        if (removedRoute) {
+          localStorage.removeItem(LAST_ROUTE_KEY);
+        }
+      } catch (_) {
+        localStorage.removeItem(LAST_ROUTE_KEY);
+      }
+    }
+
+    // Purge legacy standalone notes storage now that the Notes feature is removed.
+    const noteKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (/^projet_[^_]+_notes$/.test(key)) noteKeys.push(key);
+    }
+    noteKeys.forEach(key => localStorage.removeItem(key));
+  } catch (err) {
+    console.warn('Legacy assistant storage purge skipped:', err);
+  }
+}
+
 function getProjectUniverseId(projectId = state.currentProjectId) {
   const p = getProjects().find(x => x.id === projectId);
   return p?.universeId || null;
@@ -354,7 +396,7 @@ function saveProjectData(projectId, type, data) {
   }
 }
 function clearProjectData(projectId) {
-  ['personnages', 'lieux', 'chapitres', 'scenes', 'playlists', 'events', 'notes', 'relations', 'manuscrit', 'prefs', 'customSections'].forEach(t =>
+  ['personnages', 'lieux', 'chapitres', 'scenes', 'playlists', 'events', 'relations', 'manuscrit', 'prefs', 'customSections'].forEach(t =>
     localStorage.removeItem(`projet_${projectId}_${t}`)
   );
 }
@@ -447,7 +489,7 @@ function initCordovaBridge() {
 // ---------------------------------------------------------
 // Global search helpers (used by keyboard ctl+k)
 function performGlobalSearch(q) {
-  const out = { personnages: [], lieux: [], chapitres: [], scenes: [], relations: [], notes: [], events: [] };
+  const out = { personnages: [], lieux: [], chapitres: [], scenes: [], relations: [], events: [] };
   if (!q) return out;
   q = q.toLowerCase();
   const id = state.currentProjectId;
@@ -457,7 +499,6 @@ function performGlobalSearch(q) {
   out.chapitres = getProjectData(id,'chapitres').filter(x=>x.titre.toLowerCase().includes(q));
   out.scenes = getProjectData(id,'scenes').filter(x=>x.titre.toLowerCase().includes(q));
   out.relations = getProjectData(id,'relations').filter(x=>x.type.toLowerCase().includes(q));
-  out.notes = getProjectData(id,'notes').filter(x=>x.titre.toLowerCase().includes(q) || (x.content||'').toLowerCase().includes(q));
   out.events = getProjectData(id,'events').filter(x=>x.titre.toLowerCase().includes(q) || (x.desc||'').toLowerCase().includes(q));
   return out;
 }
@@ -493,7 +534,6 @@ function activateSearchResult(type, id) {
     case 'chapitres': openChapterModal(id); break;
     case 'scenes': if (typeof openLocalSceneModal === 'function') openLocalSceneModal(id); break;
     case 'relations': openRelationModal(id); break;
-    case 'notes': openNoteModal(id); break;
     case 'events': openEventModal(id); break;
   }
 }
@@ -579,7 +619,7 @@ function debounce(fn, delay) {
 }
 
 // debounced wrappers will be assigned after functions are defined
-let debouncedRenderNotes, debouncedRenderTimeline, debouncedHomeSearch;
+let debouncedRenderTimeline, debouncedHomeSearch;
 
 
 function fmtDate(iso) {
@@ -661,7 +701,6 @@ function showHomePage(options = {}) {
   state.homeUniverseId = null;
   document.getElementById('home-page').classList.remove('hidden');
   document.getElementById('project-page').classList.add('hidden');
-  document.getElementById('assistant-library-page')?.classList.add('hidden');
   document.getElementById('project-page').classList.remove('page-mode');
   if (!skipHash && location.hash !== '#/home') location.hash = '#/home';
   renderProjectCards();
@@ -808,7 +847,6 @@ function openUniverseGallery(universeId, options = {}) {
   state.homeUniverseId = universeId;
   document.getElementById('home-page').classList.remove('hidden');
   document.getElementById('project-page').classList.add('hidden');
-  document.getElementById('assistant-library-page')?.classList.add('hidden');
   document.getElementById('project-page').classList.remove('page-mode');
   if (!skipHash) {
     const nextHash = `#/universe/${universeId}`;
@@ -961,7 +999,6 @@ function openProject(projectId, initialSection = 'dashboard', skipHash = false) 
   migrateProjectSchema(projectId);
 
   document.getElementById('home-page').classList.add('hidden');
-  document.getElementById('assistant-library-page')?.classList.add('hidden');
   document.getElementById('project-page').classList.remove('hidden');
   document.getElementById('project-name-header').textContent = project.name;
 
@@ -1028,7 +1065,7 @@ function duplicateProject(projectId) {
     projects.push(newProj);
     saveProjects(projects);
     // copy all data types
-    ['personnages','lieux','relations','chapitres','scenes','playlists','events','notes'].forEach(t => {
+    ['personnages','lieux','relations','chapitres','scenes','playlists','events'].forEach(t => {
       const data = getProjectData(projectId, t);
       saveProjectData(newId, t, JSON.parse(JSON.stringify(data)));
     });
@@ -1056,6 +1093,8 @@ function navigateTo(section) {
   if (!section) section = 'dashboard';
   const opts = arguments[1] || {};
   const skipHash = !!opts.skipHash;
+  const sectionEl = document.getElementById(`section-${section}`);
+  if (!sectionEl) section = 'dashboard';
   state.currentSection = section;
 
   const projectPageEl = document.getElementById('project-page');
@@ -1073,7 +1112,7 @@ function navigateTo(section) {
 
   // Show correct section
   document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
-  document.getElementById(`section-${section}`).classList.remove('hidden');
+  document.getElementById(`section-${section}`)?.classList.remove('hidden');
 
   // Render content
   switch (section) {
@@ -1086,11 +1125,7 @@ function navigateTo(section) {
     case 'manuscrit':    renderManuscript(); renderManuscriptStats(); break;
     case 'playlists':    renderPlaylists();   break;
     case 'timeline':     renderTimeline();    break;
-    case 'notes':        renderNotes();       break;
     case 'journal':
-      if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
-      break;
-    case 'assistant':
       if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
       break;
     case 'parametres':   renderSettings();    break;
@@ -1107,8 +1142,6 @@ function _parseHashRoute() {
   const hash = (location.hash || '').trim();
   if (!hash || hash === '#') return { type: 'home' };
   if (hash === '#/home') return { type: 'home' };
-  if (hash === '#/assistant-library') return { type: 'assistant-library' };
-
   const um = hash.match(/^#\/universe\/([^/]+)$/);
   if (um) {
     return {
@@ -1117,7 +1150,7 @@ function _parseHashRoute() {
     };
   }
 
-  const em = hash.match(/^#\/project\/([^/]+)\/(character|location|note|relation|playlist|event)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+  const em = hash.match(/^#\/project\/([^/]+)\/(character|location|relation|playlist|event)(?:\/([^/]+))?(?:\/([^/]+))?$/);
   if (em) {
     return {
       type: 'entity',
@@ -1151,17 +1184,12 @@ function _applyHashRoute() {
     }
     return;
   }
-  if (route.type === 'assistant-library') {
-    openAssistantLibrary({ skipHash: true });
-    return;
-  }
   if (route.type === 'entity') {
     if (state.currentProjectId !== route.projectId) {
       const baseSection = route.entity === 'character' ? 'personnages'
         : (route.entity === 'location' ? 'lieux'
           : (route.entity === 'relation' ? 'relations'
-            : (route.entity === 'playlist' ? 'playlists'
-              : (route.entity === 'event' ? 'timeline' : 'notes'))));
+            : (route.entity === 'playlist' ? 'playlists' : 'timeline')));
       openProject(route.projectId, baseSection, true);
     }
     const openOpts = { skipHash: true };
@@ -1170,7 +1198,6 @@ function _applyHashRoute() {
     else if (route.entity === 'relation') openRelationModal(route.entityId, route.source, openOpts);
     else if (route.entity === 'playlist') openPlaylistModal(route.entityId, openOpts);
     else if (route.entity === 'event') openEventModal(route.entityId, openOpts);
-    else if (route.entity === 'note') openNoteModal(route.entityId, openOpts);
     return;
   }
   if (route.type === 'project') {
@@ -1201,47 +1228,6 @@ function _restoreSectionHashRoute() {
   state.suppressHashRouting = true;
   location.hash = nextHash;
   setTimeout(() => { state.suppressHashRouting = false; }, 0);
-}
-
-let _assistantLibraryPreviousPage = 'home';
-
-function openAssistantLibrary(options = {}) {
-  const skipHash = !!options.skipHash;
-  const homePage = document.getElementById('home-page');
-  const projectPage = document.getElementById('project-page');
-  const assistantLibraryPage = document.getElementById('assistant-library-page');
-  if (!assistantLibraryPage) return;
-
-  _assistantLibraryPreviousPage = homePage && homePage.classList.contains('hidden') ? 'project' : 'home';
-  if (homePage) homePage.classList.add('hidden');
-  if (projectPage) projectPage.classList.add('hidden');
-  assistantLibraryPage.classList.remove('hidden');
-
-  if (!skipHash && location.hash !== '#/assistant-library') {
-    location.hash = '#/assistant-library';
-  }
-
-  if (typeof renderAssistantHubLibrary === 'function') renderAssistantHubLibrary();
-
-  const kbInput = document.getElementById('assistant-hub-kb-input');
-  if (kbInput) {
-    kbInput.focus();
-    kbInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-}
-
-function closeAssistantLibrary(options = {}) {
-  const skipHash = !!options.skipHash;
-  const assistantLibraryPage = document.getElementById('assistant-library-page');
-  if (assistantLibraryPage) assistantLibraryPage.classList.add('hidden');
-
-  if (_assistantLibraryPreviousPage === 'project' && state.currentProjectId) {
-    document.getElementById('project-page')?.classList.remove('hidden');
-    if (!skipHash) _restoreSectionHashRoute();
-    return;
-  }
-  document.getElementById('home-page')?.classList.remove('hidden');
-  if (!skipHash && location.hash !== '#/home') location.hash = '#/home';
 }
 
 // ============================================================
@@ -1323,9 +1309,8 @@ function renderDashboard() {
     const scenes = getProjectData(id,'scenes').length;
     const playlists = getProjectData(id,'playlists').length;
     const events  = getProjectData(id,'events').length;
-    const notes   = getProjectData(id,'notes').length;
-    const labels = ['Persos','Lieux','Relations','Chaps','Scènes','Playlists','Événements','Notes'];
-    const data   = [chars.length, locs.length, rels.length, chaps.length, scenes, playlists, events, notes];
+    const labels = ['Persos','Lieux','Relations','Chaps','Scènes','Playlists','Événements'];
+    const data   = [chars.length, locs.length, rels.length, chaps.length, scenes, playlists, events];
     if (!dashboardChart) {
       dashboardChart = new Chart(barCtx.getContext('2d'), {
         type: 'bar', data: { labels, datasets:[{label:'Total', data, backgroundColor:'var(--primary)'}] },
@@ -1480,7 +1465,7 @@ function renderDashboardMetrics(chars, locs, rels) {
   // last modified element
   let lastItem = null;
   let lastDate = new Date(0);
-  ['personnages','lieux','chapitres','scenes','playlists','events','notes'].forEach(type=>{
+  ['personnages','lieux','chapitres','scenes','playlists','events'].forEach(type=>{
     getProjectData(state.currentProjectId,type).forEach(item=>{
       const d = item.updatedAt ? new Date(item.updatedAt) : (item.createdAt? new Date(item.createdAt) : null);
       if (d && d > lastDate) { lastDate = d; lastItem = `${type.slice(0,-1)} "${item.nom||item.titre||item.prenom||''}"`; }
@@ -2649,7 +2634,6 @@ function computeProjectInconsistencies(projectId) {
   const chapitres = getProjectData(projectId, 'chapitres') || [];
   const chapIds = new Set(chapitres.map(c => c.id));
   const scenes = getProjectData(projectId, 'scenes') || [];
-  const notes = getProjectData(projectId, 'notes') || [];
   const events = getProjectData(projectId, 'events') || [];
   const relations = getRelationsForProject(projectId, true) || [];
   const locations = getLocationsForProject(projectId, true) || [];
@@ -2702,13 +2686,6 @@ function computeProjectInconsistencies(projectId) {
       else if (a.type === 'chapitres') ok = chapIds.has(a.id);
       if (!ok) items.push({ severity: 'error', text: `Événement "${e.titre || e.id}": lien cassé (${a.type})` });
     });
-  });
-
-  // Notes basic checks
-  notes.forEach(n => {
-    if (n.due && isNaN(new Date(n.due).getTime())) {
-      items.push({ severity: 'warning', text: `Note "${n.titre || n.id}": échéance invalide` });
-    }
   });
 
   // Low content signal
@@ -2766,7 +2743,6 @@ function exportProject() {
     scenes:       getProjectData(id, 'scenes'),
     playlists:    getProjectData(id, 'playlists'),
     events:       getProjectData(id, 'events'),
-    notes:        getProjectData(id, 'notes'),
     customSections: JSON.parse(localStorage.getItem(`projet_${id}_customSections`) || '[]'),
     prefs:        getProjectPrefs(id),
   };
@@ -2951,7 +2927,6 @@ function importProject(event) {
       if (Array.isArray(data.scenes))      saveProjectData(newId, 'scenes',      data.scenes);
       if (Array.isArray(data.playlists))   saveProjectData(newId, 'playlists',   data.playlists);
       if (Array.isArray(data.events))      saveProjectData(newId, 'events',      data.events);
-      if (Array.isArray(data.notes))       saveProjectData(newId, 'notes',       data.notes);
       if (Array.isArray(data.customSections)) localStorage.setItem(`projet_${newId}_customSections`, JSON.stringify(data.customSections));
       if (data.prefs && typeof data.prefs === 'object') saveProjectPrefs(newId, data.prefs);
 
@@ -3905,265 +3880,12 @@ function deleteEvent(id) {
   showToast('Événement supprimé','success');
 }
 
-// ---------- Notes ----------
-function renderNotes() {
-  const id = state.currentProjectId;
-  let list = getProjectData(id,'notes');
-  const q = $('notes-search').value.toLowerCase();
-  list = list.filter(n=>{
-    return n.titre.toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q) || (n.tags||[]).some(t=>t.toLowerCase().includes(q));
-  });
-  list.sort((a,b)=>{
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return new Date(b.createdAt) - new Date(a.createdAt);
-  });
-
-  // chunking to avoid blocking UI when many notes
-  window._notesCache = list;
-  window._notesOffset = 0;
-  const container = $('notes-list');
-  container.innerHTML = '';
-  appendNotesChunk();
-}
-
-function appendNotesChunk() {
-  const container = $('notes-list');
-  const cache = window._notesCache || [];
-  const start = window._notesOffset || 0;
-  const chunk = 30;
-  if (start >= cache.length) return;
-  const slice = cache.slice(start, start + chunk);
-  const html = slice.map(n=>{
-    const dueBadge = n.due ? `<small class="note-meta">📅 ${esc(n.due)}</small>` : '';
-    const dueDate = n.due ? new Date(n.due) : null;
-    const overdue = dueDate && new Date() > dueDate && (n.tasks && n.tasks.some(t=>!t.done) || !n.tasks);
-    const overdueBadge = overdue ? `<small class="note-meta" style="color:#D32F2F">⏰ En retard</small>` : '';
-    const tasksSummary = n.tasks && n.tasks.length ? `<div class="note-tasks-summary"><small>☐ ${n.tasks.filter(t=>!t.done).length} restante(s) / ${n.tasks.length}</small></div>` : '';
-    return `<div class="note-item${n.pinned?' pinned':''}" tabindex="0" onclick="openNoteModal('${n.id}')" onkeydown="if(event.key==='Enter')openNoteModal('${n.id}')">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="display:flex;gap:8px;align-items:center"><strong>${esc(n.titre)}</strong>${dueBadge}</div>
-        <div class="note-actions">
-          ${n.tasks && n.tasks.length ? `<button class="btn-icon" onclick="event.stopPropagation();openNoteModal('${n.id}')">📝</button>` : `<button class="btn-icon" onclick="event.stopPropagation();openNoteModal('${n.id}')">✏️</button>`}
-          <button class="btn-icon" onclick="event.stopPropagation();deleteNoteConfirm('${n.id}')">🗑️</button>
-        </div>
-      </div>
-      <div>${esc(n.content||'')}</div>
-      ${tasksSummary}
-      ${n.tags && n.tags.length? `<div class="note-tags">${renderTags(n.tags)}</div>`: ''}
-    </div>`;
-  }).join('');
-  container.insertAdjacentHTML('beforeend', html);
-  window._notesOffset = start + chunk;
-  if (window._notesOffset < cache.length) {
-    setTimeout(appendNotesChunk, 0);
-  }
-}
-
 // assign debounced wrappers so inline handlers work
-debouncedRenderNotes = debounce(renderNotes, 200);
 debouncedRenderTimeline = debounce(renderTimeline, 200);
 debouncedHomeSearch = debounce(renderHomeSearch, 200);
 
 // stats update also debounced to avoid thrashing charts
 let debouncedUpdateStats = debounce(updateStats, 300);
-
-// ---------------- Reminders / Notifications ----------------
-function requestNotificationPermission() {
-  if (!('Notification' in window)) return Promise.resolve(false);
-  if (Notification.permission === 'granted') return Promise.resolve(true);
-  if (Notification.permission !== 'denied') {
-    return Notification.requestPermission().then(p => p === 'granted');
-  }
-  return Promise.resolve(false);
-}
-
-function checkDueTasksOnce() {
-  const id = state.currentProjectId;
-  if (!id) return;
-  const notes = getProjectData(id,'notes');
-  const now = new Date();
-  notes.forEach(n=>{
-    if (!n || !n.remind || !n.due) return;
-    const due = new Date(n.due);
-    // notify if due within next 60 minutes or overdue and not yet notified
-    const diffMin = (due - now) / 60000;
-    const alreadyNotified = n.__notifiedAt ? new Date(n.__notifiedAt) : null;
-    if ((diffMin <= 60 && diffMin >= 0) || (diffMin < 0 && (!alreadyNotified || (now - alreadyNotified) > 60*60*1000))) {
-      // trigger
-      requestNotificationPermission().then(granted => {
-        if (!granted) return;
-        try {
-          const title = n.titre || 'Rappel';
-          const body = n.due ? `Échéance: ${n.due}` : '';
-          const notif = new Notification(title, { body, tag: n.id });
-          // mark as notified
-          n.__notifiedAt = new Date().toISOString();
-          saveProjectData(id,'notes', notes);
-        } catch (err) {
-          console.warn('Notification failed', err);
-        }
-      });
-    }
-  });
-}
-
-let _dueTimer = null;
-function scheduleDueChecks(enable=true) {
-  if (_dueTimer) { clearInterval(_dueTimer); _dueTimer = null; }
-  if (!enable) return;
-  // run every minute
-  _dueTimer = setInterval(() => {
-    if (!isAppActive()) return;
-    checkDueTasksOnce();
-  }, 60*1000);
-  // initial run
-  if (isAppActive()) checkDueTasksOnce();
-}
-
-document.addEventListener('wb:app-pause', () => scheduleDueChecks(false));
-document.addEventListener('wb:app-resume', () => {
-  if (!state.currentProjectId) return;
-  scheduleDueChecks(true);
-});
-
-// run checks when opening a project
-const oldOpenProject = window.openProject;
-if (typeof oldOpenProject === 'function') {
-  window.openProject = function() { oldOpenProject.apply(this, arguments); scheduleDueChecks(true); };
-} else {
-  // fallback: schedule on load
-  window.addEventListener('load', ()=> scheduleDueChecks(true));
-}
-
-function openNoteModal(nId=null, options = {}) {
-  if (!options.skipHash) _setEntityHashRoute('note', nId, 'project');
-  state.editingId = nId;
-  document.getElementById('modal-note-title').textContent = nId ? 'Modifier la note' : 'Nouvelle note';
-  ['note-title','note-content','note-tags','note-due'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('note-pinned').checked = false;
-  document.getElementById('note-remind').checked = false;
-  // clear tasks area
-  const tasksListEl = document.getElementById('note-tasks-list'); if (tasksListEl) tasksListEl.innerHTML = '';
-  document.getElementById('note-new-task').value = '';
-  // wire type change to show/hide tasks
-  const typeSel = document.getElementById('note-type');
-  const taskArea = document.getElementById('note-task-area');
-  function updateTaskArea(){ if (typeSel.value === 'task') taskArea.classList.remove('hidden'); else taskArea.classList.add('hidden'); }
-  typeSel.removeEventListener('change', updateTaskArea);
-  typeSel.addEventListener('change', updateTaskArea);
-  updateTaskArea();
-  if (nId) {
-    const n = getProjectData(state.currentProjectId,'notes').find(x=>x.id===nId);
-    if (n) {
-      document.getElementById('note-title').value = n.titre || '';
-      document.getElementById('note-content').value = n.content || '';
-      document.getElementById('note-tags').value = (n.tags||[]).join(', ');
-      document.getElementById('note-pinned').checked = !!n.pinned;
-      if (n.type) document.getElementById('note-type').value = n.type;
-      if (n.due) document.getElementById('note-due').value = n.due;
-      if (n.remind) document.getElementById('note-remind').checked = true;
-      // render tasks
-      if (n.tasks && n.tasks.length) {
-        const tl = document.getElementById('note-tasks-list');
-        tl.innerHTML = '';
-        n.tasks.forEach(t=>{
-          const div = document.createElement('div');
-          div.className = 'note-task-item';
-          div.innerHTML = `<label><input type="checkbox" ${t.done? 'checked':''} onchange="toggleNoteTask('${n.id}','${t.id}', this.checked)"> ${esc(t.text)}</label> <button class=\"btn-icon\" onclick=\"deleteNoteTask('${n.id}','${t.id}')\">🗑️</button>`;
-          tl.appendChild(div);
-        });
-      }
-    }
-  }
-  openEntityPage('modal-note');
-}
-
-function saveNote() {
-  const titre = document.getElementById('note-title').value.trim();
-  if (!titre) { showToast('Le titre est requis', 'error'); return; }
-  const content = document.getElementById('note-content').value.trim();
-  const tags = parseTags(document.getElementById('note-tags').value);
-  const pinned = document.getElementById('note-pinned').checked;
-  const type = document.getElementById('note-type').value;
-  const due = document.getElementById('note-due').value || null;
-  const remind = document.getElementById('note-remind').checked;
-  const id = state.currentProjectId;
-  const list = getProjectData(id,'notes');
-  let n = state.editingId ? list.find(x=>x.id===state.editingId) : null;
-  if (!n) { n = { id: uid(), createdAt: new Date().toISOString() }; list.push(n); }
-  n.titre = titre; n.content = content; n.tags = tags; n.pinned = pinned; n.updatedAt = new Date().toISOString();
-  n.type = type; n.due = due; n.remind = remind;
-  // collect tasks from DOM if task type
-  if (type === 'task') {
-    const tasks = [];
-    const tl = document.getElementById('note-tasks-list');
-    if (tl) {
-      tl.querySelectorAll('.note-task-item').forEach(el=>{
-        // parse data-task-id attribute if present
-        const chk = el.querySelector('input[type=checkbox]');
-        const btn = el.querySelector('button');
-        const text = (el.textContent||'').trim();
-        const tid = el.getAttribute('data-task-id') || uid();
-        tasks.push({ id: tid, text: text.replace('🗑️','').trim(), done: !!(chk && chk.checked) });
-      });
-    }
-    n.tasks = tasks;
-  } else {
-    delete n.tasks;
-  }
-  saveProjectData(id,'notes',list);
-  touchProject(id);
-  showToast('Note enregistrée','success');
-  closeModal('modal-note');
-  renderNotes();
-}
-
-function addNoteTaskInput() {
-  const text = document.getElementById('note-new-task').value.trim();
-  if (!text) return;
-  const tl = document.getElementById('note-tasks-list');
-  const id = uid();
-  const div = document.createElement('div');
-  div.className = 'note-task-item';
-  div.setAttribute('data-task-id', id);
-  div.innerHTML = `<label><input type="checkbox"> ${esc(text)}</label> <button class="btn-icon" onclick="this.parentElement.remove()">🗑️</button>`;
-  tl.appendChild(div);
-  document.getElementById('note-new-task').value = '';
-}
-
-function toggleNoteTask(noteId, taskId, done) {
-  const list = getProjectData(state.currentProjectId,'notes');
-  const n = list.find(x=>x.id===noteId);
-  if (!n || !n.tasks) return;
-  const t = n.tasks.find(x=>x.id===taskId);
-  if (!t) return;
-  t.done = !!done; t.updatedAt = new Date().toISOString();
-  saveProjectData(state.currentProjectId,'notes',list);
-  touchProject(state.currentProjectId);
-  renderNotes();
-}
-
-function deleteNoteTask(noteId, taskId) {
-  const list = getProjectData(state.currentProjectId,'notes');
-  const n = list.find(x=>x.id===noteId);
-  if (!n || !n.tasks) return;
-  n.tasks = n.tasks.filter(t=>t.id!==taskId);
-  saveProjectData(state.currentProjectId,'notes',list);
-  renderNotes();
-}
-
-function deleteNoteConfirm(id) {
-  showConfirm('Supprimer la note ?', '', () => deleteNote(id));
-}
-function deleteNote(id) {
-  let list = getProjectData(state.currentProjectId,'notes');
-  list = list.filter(n=>n.id!==id);
-  saveProjectData(state.currentProjectId,'notes',list);
-  touchProject(state.currentProjectId);
-  renderNotes();
-  showToast('Note supprimée','success');
-}
 
 // ---------- Global search ----------
 
@@ -4493,13 +4215,13 @@ function closeModal(id) {
   el.classList.add('hidden');
   el.classList.remove('fullscreen-page');
   el.classList.remove('standalone-entity');
-  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-note' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
+  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
     const projectPage = document.getElementById('project-page');
     if (projectPage && projectPage.classList.contains('hidden') && state.currentProjectId) {
       projectPage.classList.remove('hidden');
     }
   }
-  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-note' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
+  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
     _restoreSectionHashRoute();
   }
   const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .entity-page:not(.hidden)');
@@ -4518,6 +4240,7 @@ function showConfirm(title, message, callback) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   perfState.lowPower = shouldUseLowPowerMode();
+  purgeLegacyAssistantStorage();
   if (window.matchMedia) {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (mq && mq.addEventListener) {
@@ -5329,7 +5052,6 @@ saveProjectData = function(projectId, type, data) {
       scenes: getProjectData(id, 'scenes'),
       playlists: getProjectData(id, 'playlists'),
       events: getProjectData(id, 'events'),
-      notes: getProjectData(id, 'notes'),
       customSections: JSON.parse(localStorage.getItem(`projet_${id}_customSections`) || '[]'),
       prefs: getProjectPrefs(id)
     };
@@ -5385,7 +5107,6 @@ saveProjectData = function(projectId, type, data) {
         if (Array.isArray(data.scenes)) saveProjectData(newId, 'scenes', data.scenes);
         if (Array.isArray(data.playlists)) saveProjectData(newId, 'playlists', data.playlists);
         if (Array.isArray(data.events)) saveProjectData(newId, 'events', data.events);
-        if (Array.isArray(data.notes)) saveProjectData(newId, 'notes', data.notes);
         if (Array.isArray(data.customSections)) localStorage.setItem(`projet_${newId}_customSections`, JSON.stringify(data.customSections));
         if (data.prefs && typeof data.prefs === 'object') saveProjectPrefs(newId, data.prefs);
         
@@ -5516,7 +5237,7 @@ async function openBackupManager() {
 }
 
 function _exportProjectData(projectId) {
-  const types = ['personnages','lieux','chapitres','scenes','relations','playlists','events','notes','manuscrit'];
+  const types = ['personnages','lieux','chapitres','scenes','relations','playlists','events','manuscrit'];
   const data = {};
   types.forEach(t => { data[t] = getProjectData(projectId, t); });
   data.prefs = getProjectPrefs(projectId);
@@ -5525,7 +5246,7 @@ function _exportProjectData(projectId) {
 
 function _importProjectData(projectId, data) {
   if (!data) return;
-  const types = ['personnages','lieux','chapitres','scenes','relations','playlists','events','notes','manuscrit'];
+  const types = ['personnages','lieux','chapitres','scenes','relations','playlists','events','manuscrit'];
   types.forEach(t => { if (Array.isArray(data[t])) saveProjectData(projectId, t, data[t]); });
   if (data.prefs) saveProjectPrefs(projectId, data.prefs);
 }

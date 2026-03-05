@@ -65,23 +65,19 @@ async function waitForServer(url, timeoutMs) {
       await page.waitForSelector('#project-page:not(.hidden)', { timeout: 10000 });
     });
 
-    await step('Assistant nav visible/clickable', async () => {
-      const nav = page.locator('[data-section="assistant"]');
-      await nav.waitFor({ state: 'visible', timeout: 10000 });
-      await nav.click();
-      await page.waitForSelector('#section-assistant:not(.hidden)', { timeout: 5000 });
+    await step('Citations section available', async () => {
+      await page.click('[data-section="citations"]');
+      await page.waitForSelector('#section-citations:not(.hidden)', { timeout: 5000 });
     });
 
-    await step('Assistant local controls', async () => {
-      await page.waitForSelector('#assistant-chat-input', { timeout: 5000 });
-      await page.waitForSelector('#assistant-chat', { timeout: 5000 });
+    await step('Journal section available', async () => {
+      await page.click('[data-section="journal"]');
+      await page.waitForSelector('#section-journal:not(.hidden)', { timeout: 5000 });
     });
 
-    await step('Timeline/Notes navigation', async () => {
+    await step('Timeline navigation', async () => {
       await page.click('[data-section="timeline"]');
       await page.waitForSelector('#section-timeline:not(.hidden)', { timeout: 5000 });
-      await page.click('[data-section="notes"]');
-      await page.waitForSelector('#section-notes:not(.hidden)', { timeout: 5000 });
     });
 
     if (pageErrors.length) {

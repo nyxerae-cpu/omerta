@@ -10,9 +10,9 @@ What it checks:
 
 - App loads
 - Project creation works
-- Sidebar navigation is visible/clickable (`assistant`)
-- Assistant chat controls exist (mode local)
-- Timeline and Notes sections are reachable
+- Citations section is reachable
+- Journal section is reachable
+- Timeline section is reachable
 - No runtime `pageerror` in the tested path
 
 Notes:
