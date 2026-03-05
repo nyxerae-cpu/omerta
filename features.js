@@ -3421,11 +3421,23 @@ async function assistantHubOpenDocument(entryId) {
     }
   }
 
-  if (!blob && row.text) {
-    blob = new Blob([row.text], { type: mimeType || 'text/plain;charset=utf-8' });
+  // Legacy fallback: rebuild full plain-text document from all chunks of the same file.
+  if (!blob && ['txt', 'md', 'rtf'].includes(ext)) {
+    const sameFile = rows
+      .filter(x => x && x.category === 'document' && x.meta && x.meta.fileName === fileName)
+      .slice()
+      .sort((a, b) => Number((a.meta && a.meta.chunkIndex) || 0) - Number((b.meta && b.meta.chunkIndex) || 0));
+    if (sameFile.length) {
+      const merged = sameFile.map(x => String(x.text || '')).join('\n\n').trim();
+      if (merged) {
+        blob = new Blob([merged], { type: 'text/plain;charset=utf-8' });
+        fileName = fileName.replace(/\.(md|rtf)$/i, '') + '.txt';
+      }
+    }
   }
+
   if (!blob) {
-    showToast('Le fichier source n\'est plus disponible', 'error');
+    showToast('Fichier source indisponible. Reimporte le document pour l\'ouvrir en entier.', 'error');
     return;
   }
 
@@ -3438,17 +3450,73 @@ async function assistantHubOpenDocument(entryId) {
     }
   }
 
-  const url = URL.createObjectURL(blob);
-  const popup = window.open(url, '_blank', 'noopener');
-  if (!popup) {
+  _assistantOpenDocumentInViewer(blob, fileName, mimeType);
+}
+
+function _assistantOpenDocumentInViewer(blob, fileName, mimeType) {
+  const existing = document.getElementById('assistant-doc-viewer-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'assistant-doc-viewer-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.72);display:flex;flex-direction:column;';
+
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;background:#111;color:#fff;font-size:13px;';
+
+  const title = document.createElement('div');
+  title.textContent = `Document: ${fileName || 'fichier'}`;
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:8px;';
+
+  const downloadBtn = document.createElement('button');
+  downloadBtn.className = 'btn btn-secondary btn-sm';
+  downloadBtn.textContent = 'Telecharger';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost btn-sm';
+  closeBtn.textContent = 'Fermer';
+
+  const content = document.createElement('div');
+  content.style.cssText = 'flex:1;background:#fff;';
+
+  const viewerUrl = URL.createObjectURL(blob);
+  const iframe = document.createElement('iframe');
+  iframe.src = viewerUrl;
+  iframe.title = fileName || 'document';
+  iframe.style.cssText = 'width:100%;height:100%;border:0;';
+  content.appendChild(iframe);
+
+  const closeViewer = () => {
+    URL.revokeObjectURL(viewerUrl);
+    overlay.remove();
+  };
+
+  downloadBtn.onclick = () => {
+    const dlBlob = blob.type ? blob : new Blob([blob], { type: mimeType || 'application/octet-stream' });
+    const dlUrl = URL.createObjectURL(dlBlob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
+    a.href = dlUrl;
+    a.download = fileName || 'document';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 20000);
+    setTimeout(() => URL.revokeObjectURL(dlUrl), 15000);
+  };
+
+  closeBtn.onclick = closeViewer;
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) closeViewer();
+  });
+
+  actions.appendChild(downloadBtn);
+  actions.appendChild(closeBtn);
+  bar.appendChild(title);
+  bar.appendChild(actions);
+  overlay.appendChild(bar);
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
 }
 
 function assistantDeleteKnowledge(id, source) {
