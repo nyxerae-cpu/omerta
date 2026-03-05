@@ -1394,10 +1394,17 @@ function _hslToHex(h, s, l) {
 let _spellcheckActive = false;
 let _spellcheckResults = [];
 
+function _setSpellModalTitle(title) {
+  const el = document.getElementById('spellcheck-title');
+  if (el) el.textContent = title;
+}
+
 async function runSpellcheck() {
   if (!editorState.quill) { showToast('Ouvrez un chapitre ou une scène pour vérifier', 'error'); return; }
   const text = editorState.quill.getText();
   if (!text.trim()) { showToast('Texte vide', 'error'); return; }
+
+  _setSpellModalTitle('Correcteur orthographique');
 
   showToast('Vérification en cours…');
   try {
@@ -1415,12 +1422,45 @@ async function runSpellcheck() {
   }
 }
 
-function _renderSpellcheckResults() {
+async function runGrammarCheck() {
+  if (!editorState.quill) { showToast('Ouvrez un chapitre ou une scène pour vérifier', 'error'); return; }
+  const text = editorState.quill.getText();
+  if (!text.trim()) { showToast('Texte vide', 'error'); return; }
+
+  _setSpellModalTitle('Correcteur grammatical');
+
+  showToast('Analyse grammaticale en cours…');
+  try {
+    const response = await fetch('https://api.languagetool.org/v2/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `text=${encodeURIComponent(text)}&language=fr&enabledOnly=false`,
+    });
+    if (!response.ok) throw new Error('API indisponible');
+    const result = await response.json();
+    const matches = result.matches || [];
+
+    _spellcheckResults = matches.filter(m => {
+      const category = (m.rule && m.rule.category && m.rule.category.id) ? m.rule.category.id.toUpperCase() : '';
+      const issue = (m.rule && m.rule.issueType) ? m.rule.issueType.toLowerCase() : '';
+      return category.includes('GRAMMAR') || issue.includes('grammar') || issue.includes('typographical');
+    });
+
+    _renderSpellcheckResults('grammaire');
+  } catch (err) {
+    showToast('Analyse grammaticale indisponible (connexion requise). Erreur : ' + err.message, 'error');
+  }
+}
+
+function _renderSpellcheckResults(mode = 'orthographe') {
   const el = document.getElementById('spellcheck-results');
   if (!el) return;
 
   if (!_spellcheckResults.length) {
-    el.innerHTML = '<div style="color:#10B981">✅ Aucune erreur détectée !</div>';
+    const okMsg = mode === 'grammaire'
+      ? '✅ Aucune anomalie grammaticale détectée !'
+      : '✅ Aucune erreur détectée !';
+    el.innerHTML = `<div style="color:#10B981">${okMsg}</div>`;
     openModal('modal-spellcheck');
     return;
   }
@@ -1431,6 +1471,7 @@ function _renderSpellcheckResults() {
       <div class="spell-issue">
         <div class="spell-text">"${esc(m.context?.text?.substring(m.context.offset, m.context.offset + m.context.length) || '')}"</div>
         <div class="spell-msg">${esc(m.message)}</div>
+        <div class="spell-msg" style="margin-top:-2px;color:var(--gray-400)">${esc(m.rule?.description || '')}</div>
         ${m.replacements?.length ? `
           <div class="spell-suggestions">
             ${m.replacements.slice(0, 3).map(r => `
@@ -1450,6 +1491,141 @@ function applySpellFix(matchIdx, replacement) {
   q.insertText(match.offset, replacement);
   _spellcheckResults.splice(matchIdx, 1);
   _renderSpellcheckResults();
+}
+
+function detectEntitiesFromEditor() {
+  if (!editorState.quill) {
+    showToast('Ouvrez un chapitre ou une scène pour détecter les entrées', 'error');
+    return;
+  }
+  const projectId = state.currentProjectId;
+  if (!projectId) {
+    showToast('Aucun projet ouvert', 'error');
+    return;
+  }
+
+  const text = editorState.quill.getText() || '';
+  if (!text.trim()) {
+    showToast('Texte vide', 'error');
+    return;
+  }
+
+  const existingChars = getCharactersForProject(projectId, true) || [];
+  const existingLocs = getLocationsForProject(projectId, true) || [];
+  const existingNames = new Set([
+    ...existingChars.map(c => [c.prenom, c.nom].filter(Boolean).join(' ').trim().toLowerCase()),
+    ...existingLocs.map(l => (l.nom || '').trim().toLowerCase()),
+  ].filter(Boolean));
+
+  const stopwords = new Set(['Le', 'La', 'Les', 'Un', 'Une', 'Des', 'Du', 'De', 'Et', 'Ou', 'Mais', 'Donc', 'Or', 'Ni', 'Car', 'Je', 'Tu', 'Il', 'Elle', 'Nous', 'Vous', 'Ils', 'Elles']);
+  const pattern = /\b([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'-]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'-]+){0,2})\b/g;
+  const counts = new Map();
+  const contexts = new Map();
+  let m;
+  while ((m = pattern.exec(text)) !== null) {
+    const raw = (m[1] || '').trim();
+    if (!raw || stopwords.has(raw)) continue;
+    const key = raw.toLowerCase();
+    counts.set(key, (counts.get(key) || 0) + 1);
+    if (!contexts.has(key)) contexts.set(key, []);
+    const start = Math.max(0, m.index - 24);
+    const end = Math.min(text.length, m.index + raw.length + 24);
+    contexts.get(key).push(text.slice(start, end).toLowerCase());
+  }
+
+  const candidates = [];
+  counts.forEach((count, key) => {
+    const name = key.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const isTwoPlusWords = key.includes(' ');
+    if (count < 2 && !isTwoPlusWords) return;
+    if (existingNames.has(key)) return;
+
+    const ctx = (contexts.get(key) || []).join(' ');
+    const placeHints = /(a\s|au\s|aux\s|dans\s|vers\s|ville|rue|quartier|chateau|for[eê]t|lac|mont|place\s)/.test(ctx);
+    const type = placeHints ? 'lieux' : 'personnages';
+    candidates.push({ name, type, count });
+  });
+
+  candidates.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  _setSpellModalTitle('Detection d\'entrees (persos/lieux)');
+  const el = document.getElementById('spellcheck-results');
+  if (!el) return;
+
+  if (!candidates.length) {
+    el.innerHTML = '<div style="color:#10B981">Aucune nouvelle entree detectee automatiquement.</div>';
+    openModal('modal-spellcheck');
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px">${candidates.length} proposition${candidates.length > 1 ? 's' : ''} detectee${candidates.length > 1 ? 's' : ''}</div>
+    ${candidates.map(c => `
+      <div class="spell-issue">
+        <div class="spell-text">${esc(c.name)}</div>
+        <div class="spell-msg">Type suggere: <strong>${c.type === 'personnages' ? 'Personnage' : 'Lieu'}</strong> - ${c.count} occurrence(s)</div>
+        <div class="spell-suggestions">
+          <button class="btn btn-secondary btn-sm" onclick="createDetectedEntry('${c.name.replace(/'/g, "\\'")}', 'personnages')">+ Personnage</button>
+          <button class="btn btn-secondary btn-sm" onclick="createDetectedEntry('${c.name.replace(/'/g, "\\'")}', 'lieux')">+ Lieu</button>
+        </div>
+      </div>
+    `).join('')}
+  `;
+  openModal('modal-spellcheck');
+}
+
+function createDetectedEntry(name, type) {
+  const projectId = state.currentProjectId;
+  if (!projectId || !name || !type) return;
+
+  if (type === 'personnages') {
+    const chars = getProjectData(projectId, 'personnages') || [];
+    const exists = chars.some(c => ([c.prenom, c.nom].filter(Boolean).join(' ').trim().toLowerCase() === name.toLowerCase()));
+    if (exists) {
+      showToast('Ce personnage existe deja', 'error');
+      return;
+    }
+    const parts = name.trim().split(/\s+/);
+    const prenom = parts.shift() || name;
+    const nom = parts.join(' ');
+    chars.push({
+      id: uid(),
+      prenom,
+      nom,
+      age: '',
+      role: 'Secondaire',
+      notes: 'Cree depuis detection automatique',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    saveProjectData(projectId, 'personnages', chars);
+    if (typeof renderCharacters === 'function') renderCharacters();
+    touchProject(projectId);
+    showToast(`Personnage cree: ${name}`, 'success');
+    return;
+  }
+
+  if (type === 'lieux') {
+    const lieux = getProjectData(projectId, 'lieux') || [];
+    const exists = lieux.some(l => (l.nom || '').trim().toLowerCase() === name.toLowerCase());
+    if (exists) {
+      showToast('Ce lieu existe deja', 'error');
+      return;
+    }
+    lieux.push({
+      id: uid(),
+      nom: name,
+      ville: '',
+      type: 'Résidence',
+      notes: 'Cree depuis detection automatique',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    saveProjectData(projectId, 'lieux', lieux);
+    if (typeof renderLocations === 'function') renderLocations();
+    touchProject(projectId);
+    showToast(`Lieu cree: ${name}`, 'success');
+  }
 }
 
 // ============================================================
@@ -1472,7 +1648,7 @@ function initMobileGestures() {
     const projectPage = document.getElementById('project-page');
     if (!projectPage || projectPage.classList.contains('hidden')) return;
 
-    const SECTIONS = ['dashboard','personnages','lieux','chapitres','scenes','manuscrit','playlists','relations','timeline','notes'];
+    const SECTIONS = ['dashboard','personnages','lieux','chapitres','scenes','manuscrit','playlists','relations','timeline','notes','assistant'];
     const curIdx = SECTIONS.indexOf(state.currentSection);
     if (curIdx === -1) return;
 
@@ -1624,6 +1800,2206 @@ function syncCopyCode() {
     .catch(() => { prompt('Copie ce code :', binId); });
 }
 
+// ============================================================
+// ASSISTANT NARRATIF LOCAL
+// ============================================================
+const _ASSISTANT_GLOBAL_KNOWLEDGE_KEY = 'wb_assistant_global_knowledge';
+const _ASSISTANT_GLOBAL_CONTEXT_KEY = 'wb_assistant_global_context';
+const _ASSISTANT_GLOBAL_FACTS_KEY = 'wb_assistant_global_facts';
+const _ASSISTANT_PROJECT_UI_COMPACT_KEY = 'wb_assistant_project_ui_compact';
+const _ASSISTANT_EYE_DEFS = [
+  { key: 'bleu', variants: ['bleu', 'bleue', 'bleus', 'bleues'] },
+  { key: 'vert', variants: ['vert', 'verte', 'verts', 'vertes'] },
+  { key: 'marron', variants: ['marron', 'brun', 'bruns'] },
+  { key: 'noir', variants: ['noir', 'noirs', 'noire', 'noires'] },
+  { key: 'gris', variants: ['gris', 'grise', 'grisatre'] },
+  { key: 'ambre', variants: ['ambre', 'ambres', 'dore', 'dores'] },
+];
+
+function _assistantReadJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed == null ? fallback : parsed;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function _assistantWriteJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function _assistantIsProjectCompactUI() {
+  const raw = localStorage.getItem(_ASSISTANT_PROJECT_UI_COMPACT_KEY);
+  if (raw == null) return true;
+  return raw !== '0';
+}
+
+function _assistantApplyProjectUIMode() {
+  const advancedPanel = document.getElementById('assistant-project-advanced');
+  const toggleBtn = document.getElementById('assistant-toggle-advanced-btn');
+  if (!toggleBtn) return;
+  const compact = _assistantIsProjectCompactUI();
+  if (advancedPanel) {
+    advancedPanel.classList.toggle('hidden', compact);
+  }
+  toggleBtn.textContent = compact ? 'Afficher paramètres' : 'Masquer paramètres';
+}
+
+function assistantToggleAdvancedUI(forceExpanded) {
+  const currentCompact = _assistantIsProjectCompactUI();
+  const nextCompact = typeof forceExpanded === 'boolean' ? !forceExpanded : !currentCompact;
+  localStorage.setItem(_ASSISTANT_PROJECT_UI_COMPACT_KEY, nextCompact ? '1' : '0');
+  _assistantApplyProjectUIMode();
+}
+
+function _assistantGetScope() {
+  const sel = document.getElementById('assistant-scope');
+  const wanted = sel ? sel.value : 'project';
+  if (wanted === 'universe' && !getProjectUniverseId(state.currentProjectId)) return 'project';
+  return wanted || 'project';
+}
+
+function _assistantUniverseId() {
+  return getProjectUniverseId(state.currentProjectId);
+}
+
+function _assistantScopeLabel(scope) {
+  if (scope === 'universe') return 'univers';
+  return 'livre';
+}
+
+function _assistantGetGlobalKnowledge() {
+  const rows = _assistantReadJson(_ASSISTANT_GLOBAL_KNOWLEDGE_KEY, []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function _assistantSaveGlobalKnowledge(rows) {
+  _assistantWriteJson(_ASSISTANT_GLOBAL_KNOWLEDGE_KEY, rows || []);
+}
+
+function _assistantGetUniverseKnowledge() {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return [];
+  const rows = getUniverseData(universeId, 'assistant_knowledge') || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+function _assistantSaveUniverseKnowledge(rows) {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return;
+  saveUniverseData(universeId, 'assistant_knowledge', rows || []);
+}
+
+function _assistantGetGlobalContext() {
+  return String(localStorage.getItem(_ASSISTANT_GLOBAL_CONTEXT_KEY) || '').trim();
+}
+
+function _assistantGetGlobalFacts() {
+  const rows = _assistantReadJson(_ASSISTANT_GLOBAL_FACTS_KEY, []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function _assistantSaveGlobalFacts(rows) {
+  _assistantWriteJson(_ASSISTANT_GLOBAL_FACTS_KEY, rows || []);
+}
+
+function _assistantGetUniverseFacts() {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return [];
+  const rows = getUniverseData(universeId, 'assistant_facts') || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+function _assistantSaveUniverseFacts(rows) {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return;
+  saveUniverseData(universeId, 'assistant_facts', rows || []);
+}
+
+function _assistantSaveGlobalContext(text) {
+  localStorage.setItem(_ASSISTANT_GLOBAL_CONTEXT_KEY, String(text || '').trim());
+}
+
+function _assistantGetUniverseContext() {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return '';
+  const value = getUniverseData(universeId, 'assistant_context') || '';
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object' && value.text) return String(value.text).trim();
+  return '';
+}
+
+function _assistantSaveUniverseContext(text) {
+  const universeId = _assistantUniverseId();
+  if (!universeId) return;
+  saveUniverseData(universeId, 'assistant_context', { text: String(text || '').trim(), updatedAt: new Date().toISOString() });
+}
+
+function _assistantDefaultState() {
+  return {
+    knowledge: [],
+    facts: [],
+    contextProject: '',
+    chat: [
+      {
+        role: 'assistant',
+        text: 'Assistant narratif pret. Tu peux parler normalement. Exemple: "je veux creer un perso mais je n\'ai pas d\'idee".',
+        ts: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
+function getAssistantState() {
+  const key = `projet_${state.currentProjectId}_assistant`;
+  const raw = localStorage.getItem(key);
+  if (!raw) return _assistantDefaultState();
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      knowledge: Array.isArray(parsed.knowledge) ? parsed.knowledge : [],
+      facts: Array.isArray(parsed.facts) ? parsed.facts : [],
+      contextProject: String(parsed.contextProject || ''),
+      chat: Array.isArray(parsed.chat) && parsed.chat.length ? parsed.chat : _assistantDefaultState().chat,
+    };
+  } catch (_) {
+    return _assistantDefaultState();
+  }
+}
+
+function saveAssistantState(s) {
+  if (!state.currentProjectId) return;
+  localStorage.setItem(`projet_${state.currentProjectId}_assistant`, JSON.stringify(s));
+}
+
+function _assistantCategoryLabel(cat) {
+  const map = {
+    livre: 'Livre/source',
+    trope: 'Trope',
+    prenom: 'Prenom',
+    regle: 'Regle ecriture',
+    univers: 'Regle univers',
+    note: 'Note',
+  };
+  return map[cat] || cat;
+}
+
+function _assistantTargetLabel(target) {
+  const map = {
+    project: 'livre',
+    universe: 'univers',
+    global: 'global',
+  };
+  return map[target] || target;
+}
+
+function _assistantResolveTarget(targetRaw) {
+  const target = targetRaw || 'project';
+  if (target === 'universe' && !_assistantUniverseId()) return 'project';
+  return target;
+}
+
+function _assistantMergeKnowledge(scope) {
+  const projectRows = getAssistantState().knowledge || [];
+  const universeRows = _assistantGetUniverseKnowledge();
+  const globalRows = _assistantGetGlobalKnowledge();
+
+  const bundles = scope === 'universe'
+    ? [
+      { source: 'global', rows: globalRows },
+      { source: 'universe', rows: universeRows },
+      { source: 'project', rows: projectRows },
+    ]
+    : [
+      { source: 'global', rows: globalRows },
+      { source: 'project', rows: projectRows },
+    ];
+
+  const out = [];
+  const seen = new Set();
+  bundles.forEach(({ source, rows }) => {
+    rows.forEach(r => {
+      if (!r || !r.text) return;
+      const key = `${(r.category || 'note').toLowerCase()}|${String(r.text).trim().toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ ...r, _source: source });
+    });
+  });
+  return out;
+}
+
+function _assistantFactsTarget() {
+  const sel = document.getElementById('assistant-facts-target');
+  const fallback = document.getElementById('assistant-kb-target');
+  const wanted = sel ? sel.value : (fallback ? fallback.value : 'project');
+  return _assistantResolveTarget(wanted || 'project');
+}
+
+function _assistantPushFact(target, fact) {
+  if (target === 'global') {
+    const rows = _assistantGetGlobalFacts();
+    rows.push(fact);
+    _assistantSaveGlobalFacts(rows);
+    return;
+  }
+  if (target === 'universe') {
+    const rows = _assistantGetUniverseFacts();
+    rows.push(fact);
+    _assistantSaveUniverseFacts(rows);
+    return;
+  }
+  const s = getAssistantState();
+  s.facts = s.facts || [];
+  s.facts.push(fact);
+  saveAssistantState(s);
+}
+
+function _assistantSetFacts(target, rows) {
+  if (target === 'global') {
+    _assistantSaveGlobalFacts(rows || []);
+    return;
+  }
+  if (target === 'universe') {
+    _assistantSaveUniverseFacts(rows || []);
+    return;
+  }
+  const s = getAssistantState();
+  s.facts = rows || [];
+  saveAssistantState(s);
+}
+
+function _assistantMergeFacts(scope) {
+  const s = getAssistantState();
+  const projectRows = Array.isArray(s.facts) ? s.facts : [];
+  const universeRows = _assistantGetUniverseFacts();
+  const globalRows = _assistantGetGlobalFacts();
+
+  const bundles = scope === 'universe'
+    ? [
+      { source: 'global', rows: globalRows },
+      { source: 'universe', rows: universeRows },
+      { source: 'project', rows: projectRows },
+    ]
+    : [
+      { source: 'global', rows: globalRows },
+      { source: 'project', rows: projectRows },
+    ];
+
+  const out = [];
+  bundles.forEach(({ source, rows }) => {
+    (rows || []).forEach(r => {
+      if (!r || !r.entityType || !r.key || !String(r.value || '').trim()) return;
+      out.push({ ...r, _source: source });
+    });
+  });
+  return out;
+}
+
+function _assistantGetCombinedContext(scope) {
+  const stateData = getAssistantState();
+  const globalCtx = _assistantGetGlobalContext();
+  const projectCtx = String(stateData.contextProject || '').trim();
+  const universeCtx = _assistantGetUniverseContext();
+  const pieces = scope === 'universe'
+    ? [globalCtx, universeCtx, projectCtx]
+    : [globalCtx, projectCtx];
+  return pieces.filter(Boolean).join('\n\n');
+}
+
+function _assistantGetEditableContext(scope) {
+  if (scope === 'universe' && _assistantUniverseId()) return _assistantGetUniverseContext();
+  return String(getAssistantState().contextProject || '').trim();
+}
+
+function _assistantRemoveKnowledgeBySource(source, id) {
+  if (!id) return;
+  if (source === 'global') {
+    const rows = _assistantGetGlobalKnowledge().filter(x => x.id !== id);
+    _assistantSaveGlobalKnowledge(rows);
+    return;
+  }
+  if (source === 'universe') {
+    const rows = _assistantGetUniverseKnowledge().filter(x => x.id !== id);
+    _assistantSaveUniverseKnowledge(rows);
+    return;
+  }
+  const s = getAssistantState();
+  s.knowledge = (s.knowledge || []).filter(x => x.id !== id);
+  saveAssistantState(s);
+}
+
+function _assistantPushKnowledge(target, entry) {
+  if (target === 'global') {
+    const rows = _assistantGetGlobalKnowledge();
+    rows.push(entry);
+    _assistantSaveGlobalKnowledge(rows);
+    return;
+  }
+  if (target === 'universe') {
+    const rows = _assistantGetUniverseKnowledge();
+    rows.push(entry);
+    _assistantSaveUniverseKnowledge(rows);
+    return;
+  }
+  const s = getAssistantState();
+  s.knowledge = s.knowledge || [];
+  s.knowledge.push(entry);
+  saveAssistantState(s);
+}
+
+function _assistantSetKnowledge(target, rows) {
+  if (target === 'global') {
+    _assistantSaveGlobalKnowledge(rows || []);
+    return;
+  }
+  if (target === 'universe') {
+    _assistantSaveUniverseKnowledge(rows || []);
+    return;
+  }
+  const s = getAssistantState();
+  s.knowledge = rows || [];
+  saveAssistantState(s);
+}
+
+function _assistantCurrentTarget() {
+  const sel = document.getElementById('assistant-kb-target');
+  return _assistantResolveTarget(sel ? sel.value : 'project');
+}
+
+function _assistantGetChapterFromQuery(queryText) {
+  const chapters = (getProjectData(state.currentProjectId, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  if (!chapters.length) return null;
+
+  const m = (queryText || '').match(/chapitre\s*(\d{1,3})/i);
+  if (m) {
+    const wanted = parseInt(m[1], 10);
+    const found = chapters.find(c => Number(c.numero) === wanted);
+    if (found) return found;
+  }
+
+  if (typeof editorState !== 'undefined' && editorState.type === 'chapter' && editorState.id) {
+    const current = chapters.find(c => c.id === editorState.id);
+    if (current) return current;
+  }
+
+  return chapters[chapters.length - 1];
+}
+
+function _assistantRecommendMusic(queryText) {
+  const chapter = _assistantGetChapterFromQuery(queryText);
+  const playlists = getProjectData(state.currentProjectId, 'playlists') || [];
+  const globalMusic = typeof getGlobalMusic === 'function' ? (getGlobalMusic() || []) : [];
+  if (!playlists.length && !globalMusic.length) return 'Aucune musique disponible pour recommander.';
+
+  const chapterText = chapter
+    ? `${chapter.titre || ''} ${(chapter.notes || '')} ${(chapter.resume || '')} ${(chapter.contenu || '')}`.toLowerCase()
+    : '';
+  const query = (queryText || '').toLowerCase();
+  const sample = `${chapterText} ${query}`;
+
+  const moodWords = ['sombre', 'romantique', 'epique', 'tension', 'calme', 'melancolique', 'joyeux'];
+  const matchedMood = moodWords.filter(w => sample.includes(w));
+  const povId = chapter && chapter.pov ? chapter.pov : null;
+
+  const candidates = [];
+  playlists.forEach(p => {
+    let score = 0;
+    const reasons = [];
+    const tagText = `${(p.nom || '')} ${(p.notes || '')} ${((p.tags || []).join(' '))}`.toLowerCase();
+    matchedMood.forEach(m => {
+      if (tagText.includes(m)) {
+        score += 2;
+        reasons.push(`mood:${m}`);
+      }
+    });
+    if (povId && (p.associated || []).some(a => a && a.type === 'personnages' && a.id === povId)) {
+      score += 3;
+      reasons.push('liee-au-POV');
+    }
+    if ((query.includes('dialogue') || sample.includes('dialogue')) && tagText.includes('calme')) {
+      score += 1;
+      reasons.push('compatible-dialogue');
+    }
+    if (score > 0) {
+      candidates.push({
+        kind: 'playlist',
+        playlistId: p.id,
+        title: p.nom || 'Playlist',
+        hint: (p.tags || []).slice(0, 3).join(', '),
+        score,
+        reasons,
+      });
+    }
+  });
+
+  globalMusic.forEach(m => {
+    let score = 0;
+    const reasons = [];
+    const tagText = `${(m.titre || '')} ${(m.artiste || '')} ${(m.notes || '')} ${((m.tags || []).join(' '))} ${(m.mood || '')}`.toLowerCase();
+    matchedMood.forEach(x => {
+      if (tagText.includes(x)) {
+        score += 2;
+        reasons.push(`mood:${x}`);
+      }
+    });
+    if ((query.includes('romance') || sample.includes('romance')) && tagText.includes('romant')) {
+      score += 2;
+      reasons.push('romance');
+    }
+    if ((query.includes('action') || sample.includes('combat')) && (tagText.includes('epique') || tagText.includes('tension'))) {
+      score += 2;
+      reasons.push('action-tension');
+    }
+    if (score > 0) {
+      candidates.push({
+        kind: 'musique',
+        globalMusicId: m.id,
+        title: `${m.titre || 'Titre inconnu'}${m.artiste ? ` - ${m.artiste}` : ''}`,
+        hint: [m.mood || '', ...(m.tags || []).slice(0, 2)].filter(Boolean).join(', '),
+        score,
+        reasons,
+      });
+    }
+  });
+
+  if (!candidates.length) {
+    const fallback = playlists.slice(0, 2).map(p => `- Playlist: ${p.nom || 'Sans nom'}`).join('\n');
+    if (fallback) return `Je n'ai pas trouve de correspondance forte. Essaie ces options:\n${fallback}`;
+    return 'Je n\'ai pas trouve de correspondance forte dans ta bibliotheque musicale.';
+  }
+
+  candidates.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  const top = candidates.slice(0, 4);
+  const chapLabel = chapter ? `chapitre ${chapter.numero || '?'}` : 'chapitre courant';
+  const maxScore = Math.max(1, ...top.map(c => c.score || 0));
+
+  window._assistantMusicRecoCache = {
+    queryText: queryText || '',
+    chapterId: chapter ? chapter.id : null,
+    chapterNumero: chapter ? chapter.numero : null,
+    candidates: top,
+    ts: Date.now(),
+  };
+
+  const moodBuckets = {};
+  top.forEach(c => {
+    (c.reasons || []).forEach(r => {
+      if (!r.startsWith('mood:')) return;
+      const m = r.replace('mood:', '');
+      moodBuckets[m] = (moodBuckets[m] || 0) + 1;
+    });
+  });
+  const moodSummary = Object.keys(moodBuckets).length
+    ? `Cluster mood: ${Object.entries(moodBuckets).map(([k, v]) => `${k}(${v})`).join(', ')}`
+    : 'Cluster mood: neutre';
+
+  return [
+    `Reco musique pour ${chapLabel}:`,
+    ...top.map((c, i) => {
+      const pct = Math.max(1, Math.min(100, Math.round((c.score / maxScore) * 100)));
+      const why = (c.reasons || []).slice(0, 3).join(', ');
+      return `${i + 1}. ${c.kind === 'playlist' ? 'Playlist' : 'Musique'} - ${c.title}${c.hint ? ` (${c.hint})` : ''} [score ${c.score} | pertinence ${pct}%${why ? ` | ${why}` : ''}]`;
+    }),
+    moodSummary,
+    'Dis-moi "ajuste en plus sombre" ou "plus romantique" pour affiner.',
+  ].join('\n');
+}
+
+function _assistantSuggestLibraryScene(queryText) {
+  if (typeof getGlobalScenes !== 'function') return 'Bibliotheque de scenes indisponible.';
+  const scenes = getGlobalScenes() || [];
+  if (!scenes.length) return 'Aucune scene globale dans la bibliotheque.';
+  const q = (queryText || '').toLowerCase();
+  const chapter = _assistantGetChapterFromQuery(queryText);
+  const base = `${q} ${(chapter && chapter.titre) || ''} ${(chapter && chapter.resume) || ''}`.toLowerCase();
+  const keywords = ['conflit', 'romance', 'reve', 'action', 'trahison', 'revelation', 'tension', 'rencontre'];
+
+  const scored = scenes.map(s => {
+    const txt = `${s.titre || ''} ${s.description || ''} ${(s.tags || []).join(' ')} ${s.categorie || ''}`.toLowerCase();
+    let score = 0;
+    const reasons = [];
+    keywords.forEach(k => {
+      if (base.includes(k) && txt.includes(k)) {
+        score += 2;
+        reasons.push(`mot-cle:${k}`);
+      }
+    });
+    if (base.includes('dialogue') && txt.includes('dialogue')) {
+      score += 2;
+      reasons.push('dialogue');
+    }
+    if (base.includes('tension') && txt.includes('tension')) {
+      score += 1;
+      reasons.push('tension');
+    }
+    return { s, score, reasons };
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return 'Je ne vois pas de scene bibliotheque tres proche pour ce besoin.';
+  const top = scored.slice(0, 3);
+  const maxScore = Math.max(1, ...top.map(x => x.score || 0));
+  return [
+    'Scenes bibliotheque conseillees:',
+    ...top.map((x, i) => {
+      const pct = Math.max(1, Math.min(100, Math.round((x.score / maxScore) * 100)));
+      const why = (x.reasons || []).slice(0, 3).join(', ');
+      return `${i + 1}. ${x.s.titre || 'Scene sans titre'}${x.s.categorie ? ` (${x.s.categorie})` : ''} [score ${x.score} | pertinence ${pct}%${why ? ` | ${why}` : ''}]`;
+    }),
+  ].join('\n');
+}
+
+function _assistantCreateRecommendedPlaylistFromCache() {
+  const cache = window._assistantMusicRecoCache;
+  const id = state.currentProjectId;
+  if (!id) return 'Aucun projet actif.';
+  if (!cache || !Array.isArray(cache.candidates) || !cache.candidates.length) {
+    return 'Aucune recommandation musique recente a convertir en playlist.';
+  }
+
+  const playlists = getProjectData(id, 'playlists') || [];
+  const chapter = (getProjectData(id, 'chapitres') || []).find(c => c.id === cache.chapterId);
+  const chapterLabel = chapter ? `Chapitre ${chapter.numero || '?'}` : 'Chapitre';
+  const baseName = `Reco ${chapterLabel}`;
+  let name = baseName;
+  let idx = 2;
+  while (playlists.some(p => (p.nom || '').trim().toLowerCase() === name.toLowerCase())) {
+    name = `${baseName} (${idx++})`;
+  }
+
+  const globalMusic = typeof getGlobalMusic === 'function' ? (getGlobalMusic() || []) : [];
+  const now = new Date().toISOString();
+  const titres = [];
+  const tags = new Set(['reco-auto', 'assistant']);
+  let chosenUrl = '';
+
+  cache.candidates.forEach(c => {
+    (c.reasons || []).forEach(r => {
+      if (r.startsWith('mood:')) tags.add(r.replace('mood:', ''));
+    });
+
+    if (c.kind === 'musique' && c.globalMusicId) {
+      const m = globalMusic.find(x => x.id === c.globalMusicId);
+      if (!m) return;
+      titres.push({ titre: m.titre || c.title, artiste: m.artiste || '', globalMusicId: m.id });
+      if (!chosenUrl && m.url) chosenUrl = m.url;
+      return;
+    }
+
+    if (c.kind === 'playlist' && c.playlistId) {
+      const src = playlists.find(p => p.id === c.playlistId);
+      if (!src) return;
+      if (!chosenUrl && src.url) chosenUrl = src.url;
+      if (Array.isArray(src.titres) && src.titres.length) {
+        src.titres.slice(0, 2).forEach(t => {
+          titres.push({
+            titre: t.titre || src.nom || c.title,
+            artiste: t.artiste || '',
+            globalMusicId: t.globalMusicId || null,
+          });
+        });
+      } else {
+        titres.push({ titre: src.nom || c.title, artiste: 'Playlist', globalMusicId: null });
+      }
+    }
+  });
+
+  if (!titres.length) {
+    return 'Impossible de construire une playlist (aucune source exploitable).';
+  }
+
+  const associated = [];
+  if (chapter) associated.push({ type: 'chapitres', id: chapter.id });
+
+  playlists.push({
+    id: uid(),
+    nom: name,
+    url: chosenUrl || '',
+    image: '',
+    tags: Array.from(tags).slice(0, 8),
+    notes: `Generee automatiquement depuis recommandations assistant (${new Date().toLocaleString('fr-FR')}).`,
+    associated,
+    titres,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  saveProjectData(id, 'playlists', playlists);
+  touchProject(id);
+  if (state.currentSection === 'playlists') renderPlaylists();
+  return `Playlist recommandee creee: ${name} (${titres.length} titre(s)).`;
+}
+
+function _assistantContradictionScan() {
+  const chapters = getProjectData(state.currentProjectId, 'chapitres') || [];
+  const chars = getCharactersForProject(state.currentProjectId, true) || [];
+  const out = [];
+
+  const eyeDefs = [
+    { key: 'bleu', variants: ['bleu', 'bleue', 'bleus', 'bleues'] },
+    { key: 'vert', variants: ['vert', 'verte', 'verts', 'vertes'] },
+    { key: 'marron', variants: ['marron', 'brun', 'bruns'] },
+    { key: 'noir', variants: ['noir', 'noirs', 'noire', 'noires'] },
+    { key: 'gris', variants: ['gris', 'grise', 'grisatre'] },
+    { key: 'ambre', variants: ['ambre', 'ambres', 'dore', 'dores'] },
+  ];
+
+  const makeSnippet = (rawText, centerIndex) => {
+    const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    const start = Math.max(0, centerIndex - 70);
+    const end = Math.min(text.length, centerIndex + 90);
+    const s = text.slice(start, end).trim();
+    return s.length > 160 ? `${s.slice(0, 157)}...` : s;
+  };
+
+  chars.forEach(c => {
+    const name = [c.prenom, c.nom].filter(Boolean).join(' ').trim() || c.prenom || c.id;
+    const eyes = (c.yeux || '').trim().toLowerCase();
+    if (!name || !eyes) return;
+
+    const seen = [];
+    chapters.forEach(ch => {
+      const raw = `${ch.titre || ''} ${ch.contenu || ''} ${ch.notes || ''}`;
+      const text = raw.toLowerCase();
+      const loweredName = name.toLowerCase();
+      let cursor = 0;
+      while (cursor < text.length) {
+        const at = text.indexOf(loweredName, cursor);
+        if (at === -1) break;
+        const winStart = Math.max(0, at - 120);
+        const winEnd = Math.min(text.length, at + loweredName.length + 120);
+        const win = text.slice(winStart, winEnd);
+        eyeDefs.forEach(def => {
+          const hit = def.variants.find(v => win.includes(v));
+          if (!hit) return;
+          if (eyes.includes(def.key)) return;
+          if (eyes.includes(hit)) return;
+          seen.push({
+            col: def.key,
+            chap: ch.numero || '?',
+            title: ch.titre || `Chapitre ${ch.numero || '?'}`,
+            snippet: makeSnippet(raw, at),
+          });
+        });
+        cursor = at + loweredName.length;
+      }
+    });
+
+    const uniq = new Set();
+    seen.forEach(conflicting => {
+      const key = `${name}|${conflicting.chap}|${conflicting.col}`;
+      if (uniq.has(key)) return;
+      uniq.add(key);
+      out.push(`- ${name}: fiche yeux="${c.yeux}", contradiction en chapitre ${conflicting.chap} (${conflicting.title}) -> "${conflicting.col}". Extrait: "${conflicting.snippet}"`);
+    });
+  });
+
+  const events = getProjectData(state.currentProjectId, 'events') || [];
+  const titles = new Set();
+  events.forEach(e => {
+    const t = (e.titre || '').trim().toLowerCase();
+    if (!t) return;
+    if (titles.has(t) && /(secret|revelation|révélation)/.test(t)) {
+      out.push(`- Secret potentiellement revele plusieurs fois: "${e.titre}" (event id: ${e.id || 'inconnu'}, date: ${e.date || 'n/a'}).`);
+    }
+    titles.add(t);
+  });
+
+  if (!out.length) return 'Pas de contradiction evidente detectee sur les controles rapides.';
+  return ['Controle contradiction avec references:', ...out.slice(0, 12)].join('\n');
+}
+
+function _assistantSuggestCustomSections(queryText) {
+  const q = (queryText || '').toLowerCase();
+  const suggestions = [];
+  if (/mafia|gang|cartel|crime/.test(q)) {
+    suggestions.push('Organisation criminelle: nom, hierarchie, territoires, allies, ennemis, codes.');
+  }
+  if (/magie|pouvoir|sort/.test(q)) {
+    suggestions.push('Systeme de magie: cout, limites, ecoles, risques, contres.');
+  }
+  if (/enquete|police|mystere|mystere/.test(q)) {
+    suggestions.push('Enquete: pistes, indices, suspects, alibis, timeline des preuves.');
+  }
+  if (!suggestions.length) {
+    suggestions.push('Section "Organisation": nom, role, ressources, regles, membres, conflits.');
+    suggestions.push('Section "Objet cle": proprietaire, origine, pouvoir, prix narratif, statut.');
+  }
+  return ['Sections custom utiles:', ...suggestions.map((s, i) => `${i + 1}. ${s}`)].join('\n');
+}
+
+function renderAssistant() {
+  const projectId = state.currentProjectId;
+  if (!projectId) return;
+  _assistantApplyProjectUIMode();
+  const scope = _assistantGetScope();
+  const mergedKnowledge = _assistantMergeKnowledge(scope);
+
+  assistantUpdateChatModeUI();
+
+  const listEl = document.getElementById('assistant-kb-list');
+  const statsEl = document.getElementById('assistant-kb-stats');
+  if (listEl) {
+    if (!mergedKnowledge.length) {
+      listEl.innerHTML = '<div class="settings-hint">Aucune entree pour le moment.</div>';
+    } else {
+      const sorted = [...mergedKnowledge].sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+      listEl.innerHTML = sorted.slice(0, 150).map((k, idx) => `
+        <div class="assistant-kb-item">
+          <div class="assistant-kb-meta">${esc(_assistantCategoryLabel(k.category))} - ${esc(new Date(k.ts || Date.now()).toLocaleDateString('fr'))} - ${esc(_assistantTargetLabel(k._source || 'project'))}</div>
+          <div>${esc(k.text)}</div>
+          <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" onclick="assistantDeleteKnowledge('${k.id || idx}','${k._source || 'project'}')">Supprimer</button></div>
+        </div>
+      `).join('');
+    }
+  }
+
+  if (statsEl) {
+    const counts = { livre: 0, trope: 0, prenom: 0, regle: 0, univers: 0, note: 0 };
+    mergedKnowledge.forEach(k => { if (counts[k.category] !== undefined) counts[k.category]++; });
+    statsEl.textContent = `Portee ${_assistantScopeLabel(scope)} - ${mergedKnowledge.length} entree(s) - Livres ${counts.livre}, Tropes ${counts.trope}, Prenoms ${counts.prenom}, Regles ${counts.regle + counts.univers}`;
+  }
+
+  const chatEl = document.getElementById('assistant-chat');
+  const s = getAssistantState();
+  if (chatEl) {
+    chatEl.innerHTML = (s.chat || []).map((m, msgIdx) => {
+      const bubble = `<div class="assistant-bubble ${m.role}">${esc(m.text)}</div>`;
+      const actions = (m.role === 'assistant' && Array.isArray(m.actions) && m.actions.length)
+        ? `<div class="assistant-action-row">${m.actions.map((a, actIdx) =>
+          `${
+            `<button class="btn btn-secondary btn-sm assistant-action-btn ${a.done ? 'done' : ''}" ${a.done ? 'disabled' : `onclick="assistantRunChatAction(${msgIdx}, ${actIdx})"`}>
+              ${esc(a.done ? `✓ ${a.label || 'Action'} (faite)` : (a.label || 'Action'))}
+            </button>`
+          }${
+            (a.done && _assistantIsReplayableAction(a))
+              ? `<button class="btn btn-ghost btn-sm assistant-action-replay" onclick="assistantReplayChatAction(${msgIdx}, ${actIdx})">↺ Rejouer</button>`
+              : ''
+          }`
+        ).join('')}</div>`
+        : '';
+      return `${bubble}${actions}`;
+    }).join('');
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  const contextEl = document.getElementById('assistant-global-context');
+  if (contextEl && document.activeElement !== contextEl) {
+    contextEl.value = _assistantGetEditableContext(scope);
+  }
+
+  const brainEl = document.getElementById('assistant-brain-results');
+  if (brainEl && window._assistantBrainDraft && !brainEl.dataset.locked) {
+    _assistantRenderBrainResults(window._assistantBrainDraft);
+  }
+
+  assistantRenderCanonicalFactsReport();
+}
+
+function renderAssistantHubLibrary() {
+  const page = document.getElementById('assistant-library-page');
+  if (!page || page.classList.contains('hidden')) return;
+
+  const rows = _assistantGetGlobalKnowledge().slice().sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+  const listEl = document.getElementById('assistant-hub-kb-list');
+  const statsEl = document.getElementById('assistant-hub-kb-stats');
+  const ctxEl = document.getElementById('assistant-hub-global-context');
+  const factsStatsEl = document.getElementById('assistant-hub-facts-stats');
+
+  if (ctxEl && document.activeElement !== ctxEl) {
+    ctxEl.value = _assistantGetGlobalContext();
+  }
+
+  if (listEl) {
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="settings-hint">Aucune entree globale pour le moment.</div>';
+    } else {
+      listEl.innerHTML = rows.slice(0, 220).map((k, idx) => `
+        <div class="assistant-kb-item">
+          <div class="assistant-kb-meta">${esc(_assistantCategoryLabel(k.category || 'note'))} - ${esc(new Date(k.ts || Date.now()).toLocaleDateString('fr'))}</div>
+          <div>${esc(k.text || '')}</div>
+          <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" onclick="assistantHubDeleteKnowledge('${k.id || idx}')">Supprimer</button></div>
+        </div>
+      `).join('');
+    }
+  }
+
+  if (statsEl) {
+    const counts = { livre: 0, trope: 0, prenom: 0, regle: 0, univers: 0, note: 0 };
+    rows.forEach(k => {
+      if (counts[k.category] !== undefined) counts[k.category]++;
+    });
+    statsEl.textContent = `Base globale: ${rows.length} entree(s) - Livres ${counts.livre}, Tropes ${counts.trope}, Prenoms ${counts.prenom}, Regles ${counts.regle + counts.univers}`;
+  }
+
+  if (factsStatsEl) {
+    const facts = _assistantGetGlobalFacts();
+    factsStatsEl.textContent = `Faits canoniques globaux: ${facts.length}`;
+  }
+}
+
+function assistantGenerateCanonicalFacts() {
+  const target = _assistantFactsTarget();
+  const id = state.currentProjectId;
+  const now = new Date().toISOString();
+  let added = 0;
+
+  const existing = [];
+  if (target === 'global') existing.push(..._assistantGetGlobalFacts());
+  else if (target === 'universe') existing.push(..._assistantGetUniverseFacts());
+  else existing.push(...(getAssistantState().facts || []));
+
+  const seen = new Set(existing.map(f => `${f.entityType}|${f.entityId || f.entityName || ''}|${f.key}|${String(f.value || '').toLowerCase()}`));
+
+  const pushFact = (fact) => {
+    const value = String(fact.value || '').trim();
+    if (!value) return;
+    const key = `${fact.entityType}|${fact.entityId || fact.entityName || ''}|${fact.key}|${value.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    _assistantPushFact(target, {
+      id: uid(),
+      entityType: fact.entityType,
+      entityId: fact.entityId || null,
+      entityName: fact.entityName || '',
+      key: fact.key,
+      value,
+      sourceText: fact.sourceText || 'fiches projet',
+      ts: now,
+    });
+    added++;
+  };
+
+  const chars = getCharactersForProject(id, true) || [];
+  chars.forEach(c => {
+    const name = [c.prenom, c.nom].filter(Boolean).join(' ').trim() || c.prenom || c.id;
+    pushFact({ entityType: 'personnage', entityId: c.id, entityName: name, key: 'yeux', value: c.yeux || '' });
+    pushFact({ entityType: 'personnage', entityId: c.id, entityName: name, key: 'cheveux', value: c.cheveux || '' });
+    pushFact({ entityType: 'personnage', entityId: c.id, entityName: name, key: 'age', value: c.age || '' });
+    pushFact({ entityType: 'personnage', entityId: c.id, entityName: name, key: 'role', value: c.role || '' });
+  });
+
+  const lieux = getLocationsForProject(id, true) || [];
+  lieux.forEach(l => {
+    const name = (l.nom || '').trim() || l.id;
+    pushFact({ entityType: 'lieu', entityId: l.id, entityName: name, key: 'ville', value: l.ville || '' });
+    pushFact({ entityType: 'lieu', entityId: l.id, entityName: name, key: 'type', value: l.type || '' });
+  });
+
+  touchProject(id);
+  assistantRenderCanonicalFactsReport();
+  showToast(`${added} fait(s) canonique(s) ajoute(s) dans ${_assistantTargetLabel(target)}`, 'success');
+}
+
+function _assistantComputeCanonicalFactCheck(scope) {
+  const facts = _assistantMergeFacts(scope);
+  const report = [];
+  const chapters = getProjectData(state.currentProjectId, 'chapitres') || [];
+
+  const entityFilter = document.getElementById('assistant-facts-entity-filter')?.value || '';
+  const filteredFacts = entityFilter ? facts.filter(f => f.entityType === entityFilter) : facts;
+
+  const byCanonicalKey = new Map();
+  filteredFacts.forEach(f => {
+    const k = `${f.entityType}|${f.entityId || f.entityName}|${f.key}`;
+    if (!byCanonicalKey.has(k)) byCanonicalKey.set(k, []);
+    byCanonicalKey.get(k).push(f);
+  });
+
+  byCanonicalKey.forEach((rows, k) => {
+    const values = Array.from(new Set(rows.map(r => String(r.value || '').trim().toLowerCase()).filter(Boolean)));
+    if (values.length > 1) {
+      const first = rows[0];
+      report.push({
+        severity: 'warning',
+        title: `Fait canonique ambigu: ${first.entityName || first.entityId} - ${first.key}`,
+        text: `Plusieurs valeurs canoniques detectees: ${values.join(' / ')}`,
+        meta: `Sources: ${Array.from(new Set(rows.map(r => r._source || 'project'))).join(', ')}`,
+      });
+    }
+  });
+
+  // Text contradiction check for character eye color against chapters.
+  filteredFacts
+    .filter(f => f.entityType === 'personnage' && f.key === 'yeux' && String(f.value || '').trim())
+    .forEach(f => {
+      const canon = String(f.value || '').toLowerCase();
+      const name = (f.entityName || '').toLowerCase();
+      if (!name) return;
+      chapters.forEach(ch => {
+        const raw = `${ch.titre || ''} ${ch.contenu || ''} ${ch.notes || ''}`;
+        const low = raw.toLowerCase();
+        const at = low.indexOf(name);
+        if (at === -1) return;
+        const win = low.slice(Math.max(0, at - 120), Math.min(low.length, at + name.length + 120));
+        _ASSISTANT_EYE_DEFS.forEach(def => {
+          const has = def.variants.some(v => win.includes(v));
+          if (!has) return;
+          if (canon.includes(def.key)) return;
+          const snippet = raw.replace(/\s+/g, ' ').trim().slice(Math.max(0, at - 60), Math.max(0, at - 60) + 150);
+          report.push({
+            severity: 'error',
+            title: `Contradiction texte: ${f.entityName} (yeux)` ,
+            text: `Canon="${f.value}" mais chapitre ${ch.numero || '?'} mentionne "${def.key}".`,
+            meta: snippet ? `Extrait: ${snippet}` : '',
+          });
+        });
+      });
+    });
+
+  return {
+    factsCount: filteredFacts.length,
+    warnings: report.filter(r => r.severity === 'warning').length,
+    errors: report.filter(r => r.severity === 'error').length,
+    items: report.slice(0, 60),
+  };
+}
+
+function assistantRenderCanonicalFactsReport() {
+  const summaryEl = document.getElementById('assistant-facts-summary');
+  const reportEl = document.getElementById('assistant-facts-report');
+  if (!summaryEl || !reportEl || !state.currentProjectId) return;
+
+  const scope = _assistantGetScope();
+  const result = _assistantComputeCanonicalFactCheck(scope);
+  summaryEl.textContent = `Faits canoniques: ${result.factsCount} - ${result.errors} erreur(s), ${result.warnings} avertissement(s).`;
+
+  if (!result.items.length) {
+    reportEl.innerHTML = '<div class="settings-hint">Aucune contradiction canonique detectee pour le moment.</div>';
+    return;
+  }
+
+  reportEl.innerHTML = result.items.map(it => `
+    <div class="assistant-fact-item ${it.severity}">
+      <div><strong>${esc(it.title || 'Alerte canonique')}</strong></div>
+      <div>${esc(it.text || '')}</div>
+      ${it.meta ? `<div class="assistant-fact-meta">${esc(it.meta)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function assistantRunCanonicalFactCheck() {
+  assistantRenderCanonicalFactsReport();
+  showToast('Controle des faits canoniques mis a jour', 'success');
+}
+
+function assistantClearCanonicalFactsConfirm() {
+  const target = _assistantFactsTarget();
+  showConfirm(`Vider les faits canoniques (${_assistantTargetLabel(target)}) ?`, '', () => {
+    _assistantSetFacts(target, []);
+    assistantRenderCanonicalFactsReport();
+    showToast('Faits canoniques vides', 'success');
+  });
+}
+
+function assistantAddKnowledge() {
+  const category = document.getElementById('assistant-kb-category')?.value || 'note';
+  const text = (document.getElementById('assistant-kb-input')?.value || '').trim();
+  if (!text) { showToast('Ajoute un contenu', 'error'); return; }
+
+  const target = _assistantCurrentTarget();
+  _assistantPushKnowledge(target, { id: uid(), category, text, ts: new Date().toISOString() });
+  document.getElementById('assistant-kb-input').value = '';
+  renderAssistant();
+  showToast(`Ajoute a la base assistant (${_assistantTargetLabel(target)})`, 'success');
+}
+
+function assistantHubAddKnowledge() {
+  const category = document.getElementById('assistant-hub-kb-category')?.value || 'note';
+  const inputEl = document.getElementById('assistant-hub-kb-input');
+  const text = String(inputEl?.value || '').trim();
+  if (!text) {
+    showToast('Ajoute un contenu', 'error');
+    return;
+  }
+  _assistantPushKnowledge('global', { id: uid(), category, text, ts: new Date().toISOString() });
+  if (inputEl) inputEl.value = '';
+  renderAssistantHubLibrary();
+  showToast('Ajoute a la base globale assistant', 'success');
+}
+
+function assistantHubDeleteKnowledge(id) {
+  if (!id) return;
+  _assistantRemoveKnowledgeBySource('global', id);
+  renderAssistantHubLibrary();
+}
+
+function assistantHubImportBulk() {
+  const bulkEl = document.getElementById('assistant-hub-bulk-input');
+  const raw = String(bulkEl?.value || '').trim();
+  if (!raw) {
+    showToast('Rien a importer', 'error');
+    return;
+  }
+
+  let added = 0;
+  raw.split('\n').map(x => x.trim()).filter(Boolean).forEach(line => {
+    let category = 'note';
+    let text = line;
+    const m = line.match(/^(livre|trope|prenom|regle|univers|note)\s*:\s*(.+)$/i);
+    if (m) {
+      category = String(m[1] || 'note').toLowerCase();
+      text = String(m[2] || '').trim();
+    }
+    if (!text) return;
+    _assistantPushKnowledge('global', { id: uid(), category, text, ts: new Date().toISOString() });
+    added++;
+  });
+
+  if (bulkEl) bulkEl.value = '';
+  renderAssistantHubLibrary();
+  showToast(`${added} entree(s) importee(s) dans la base globale`, 'success');
+}
+
+function assistantHubClearKnowledgeConfirm() {
+  showConfirm('Vider toute la base globale assistant ?', '', () => {
+    _assistantSetKnowledge('global', []);
+    renderAssistantHubLibrary();
+    showToast('Base globale assistant videe', 'success');
+  });
+}
+
+function assistantHubSaveContext() {
+  const ctx = document.getElementById('assistant-hub-global-context')?.value || '';
+  _assistantSaveGlobalContext(ctx);
+  renderAssistantHubLibrary();
+  showToast('Contexte global enregistre', 'success');
+}
+
+function assistantHubExportKnowledge() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    scope: 'global',
+    knowledge: _assistantGetGlobalKnowledge(),
+    context: _assistantGetGlobalContext(),
+    facts: _assistantGetGlobalFacts(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'assistant_global_library.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function assistantHubImportKnowledgeFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  try {
+    const txt = await file.text();
+    const parsed = JSON.parse(txt);
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed.knowledge) ? parsed.knowledge : []);
+
+    const existing = _assistantGetGlobalKnowledge();
+    const seen = new Set(existing.map(r => `${String(r.category || 'note').toLowerCase()}|${String(r.text || '').trim().toLowerCase()}`));
+    let added = 0;
+
+    rows.forEach(r => {
+      if (!r || !r.text) return;
+      const category = String(r.category || 'note').toLowerCase();
+      const text = String(r.text || '').trim();
+      if (!text) return;
+      const key = `${category}|${text.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      existing.push({ id: uid(), category, text, ts: r.ts || new Date().toISOString() });
+      added++;
+    });
+
+    _assistantSaveGlobalKnowledge(existing);
+
+    if (parsed && typeof parsed.context === 'string' && parsed.context.trim()) {
+      _assistantSaveGlobalContext(parsed.context);
+    }
+
+    if (parsed && Array.isArray(parsed.facts) && parsed.facts.length) {
+      const facts = _assistantGetGlobalFacts();
+      parsed.facts.forEach(f => {
+        if (!f || !f.entityType || !f.key || !String(f.value || '').trim()) return;
+        facts.push({
+          id: uid(),
+          entityType: f.entityType,
+          entityId: f.entityId || null,
+          entityName: f.entityName || '',
+          key: f.key,
+          value: String(f.value || '').trim(),
+          sourceText: f.sourceText || 'import',
+          ts: f.ts || new Date().toISOString(),
+        });
+      });
+      _assistantSaveGlobalFacts(facts);
+    }
+
+    renderAssistantHubLibrary();
+    showToast(`Import global termine (${added} entree(s))`, 'success');
+  } catch (err) {
+    showToast('Import impossible: ' + err.message, 'error');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function assistantDeleteKnowledge(id, source) {
+  const src = source || 'project';
+  _assistantRemoveKnowledgeBySource(src, id);
+  renderAssistant();
+}
+
+function assistantImportBulk() {
+  const raw = (document.getElementById('assistant-bulk-input')?.value || '').trim();
+  if (!raw) { showToast('Rien a importer', 'error'); return; }
+
+  const target = _assistantCurrentTarget();
+  let added = 0;
+  raw.split('\n').map(x => x.trim()).filter(Boolean).forEach(line => {
+    let category = 'note';
+    let text = line;
+    const m = line.match(/^(livre|trope|prenom|regle|univers|note)\s*:\s*(.+)$/i);
+    if (m) {
+      category = m[1].toLowerCase();
+      text = m[2].trim();
+    }
+    if (!text) return;
+    _assistantPushKnowledge(target, { id: uid(), category, text, ts: new Date().toISOString() });
+    added++;
+  });
+
+  document.getElementById('assistant-bulk-input').value = '';
+  renderAssistant();
+  showToast(`${added} entree(s) importee(s) dans ${_assistantTargetLabel(target)}`, 'success');
+}
+
+function assistantClearKnowledgeConfirm() {
+  const target = _assistantCurrentTarget();
+  showConfirm(`Vider la base assistant (${_assistantTargetLabel(target)}) ?`, '', () => {
+    _assistantSetKnowledge(target, []);
+    renderAssistant();
+    showToast('Base assistant videe', 'success');
+  });
+}
+
+function assistantExportKnowledge() {
+  const scope = _assistantGetScope();
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    projectId: state.currentProjectId,
+    scope,
+    knowledge: _assistantMergeKnowledge(scope),
+    context: _assistantGetCombinedContext(scope),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `assistant_base_${state.currentProjectId}_${scope}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function assistantImportKnowledgeFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const target = _assistantCurrentTarget();
+  try {
+    const txt = await file.text();
+    const parsed = JSON.parse(txt);
+    const rows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.knowledge) ? parsed.knowledge : []);
+    if (!rows.length) throw new Error('Aucune entree');
+    let added = 0;
+    rows.forEach(r => {
+      if (!r || !r.text) return;
+      _assistantPushKnowledge(target, {
+        id: uid(),
+        category: r.category || 'note',
+        text: String(r.text).trim(),
+        ts: r.ts || new Date().toISOString(),
+      });
+      added++;
+    });
+    renderAssistant();
+    showToast(`Import assistant termine (${added})`, 'success');
+  } catch (err) {
+    showToast('Import impossible: ' + err.message, 'error');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function assistantUpdateChatModeUI() {
+  const mode = document.getElementById('assistant-chat-mode')?.value || 'coach';
+  const wrapPersona = document.getElementById('assistant-mode-persona-wrap');
+  const wrapGroup = document.getElementById('assistant-mode-group-wrap');
+  if (wrapPersona) wrapPersona.style.display = mode === 'persona' ? '' : 'none';
+  if (wrapGroup) wrapGroup.style.display = mode === 'group' ? '' : 'none';
+
+  const chars = getCharactersForProject(state.currentProjectId, true) || [];
+  const personaSel = document.getElementById('assistant-persona-id');
+  const groupSel = document.getElementById('assistant-group-ids');
+
+  if (personaSel) {
+    const prev = personaSel.value;
+    personaSel.innerHTML = chars.map(c => {
+      const name = [c.prenom, c.nom].filter(Boolean).join(' ');
+      return `<option value="${c.id}">${esc(name || c.id)}</option>`;
+    }).join('');
+    if (prev && chars.some(c => c.id === prev)) personaSel.value = prev;
+  }
+
+  if (groupSel) {
+    const prev = Array.from(groupSel.selectedOptions || []).map(o => o.value);
+    groupSel.innerHTML = chars.map(c => {
+      const name = [c.prenom, c.nom].filter(Boolean).join(' ');
+      return `<option value="${c.id}">${esc(name || c.id)}</option>`;
+    }).join('');
+    prev.forEach(id => {
+      const opt = groupSel.querySelector(`option[value="${id}"]`);
+      if (opt) opt.selected = true;
+    });
+  }
+}
+
+function _assistantRenderBrainResults(draft) {
+  const el = document.getElementById('assistant-brain-results');
+  if (!el) return;
+  const g = (title, arr) => `
+    <div class="assistant-brain-group">
+      <div class="assistant-brain-group-title">${esc(title)} (${arr.length})</div>
+      <div>${arr.length ? arr.map(x => `<span class="assistant-brain-chip">${esc(x)}</span>`).join('') : '<span class="settings-hint">Aucun</span>'}</div>
+    </div>`;
+  el.innerHTML = [
+    g('Personnages', draft.personnages || []),
+    g('Lieux', draft.lieux || []),
+    g('Chapitres', draft.chapitres || []),
+    g('Tropes', draft.tropes || []),
+    g('Notes', draft.notes || []),
+    g('Sections suggerees', draft.sectionSuggestions || []),
+  ].join('');
+}
+
+function assistantAnalyzeBrainDump() {
+  const raw = (document.getElementById('assistant-brain-input')?.value || '').trim();
+  if (!raw) { showToast('Colle un bloc de texte', 'error'); return; }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const personnages = new Set();
+  const lieux = new Set();
+  const chapitres = new Set();
+  const tropes = new Set();
+  const notes = new Set();
+  const sectionSuggestions = new Set();
+
+  const stop = new Set(['Le', 'La', 'Les', 'Un', 'Une', 'Des', 'Du', 'De', 'Et', 'Ou', 'Mais', 'Donc', 'Or', 'Ni', 'Car']);
+  const nameRegex = /\b([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'-]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'-]+){0,2})\b/g;
+  let m;
+  while ((m = nameRegex.exec(raw)) !== null) {
+    const n = (m[1] || '').trim();
+    if (!n || stop.has(n)) continue;
+    if (n.length < 3) continue;
+    personnages.add(n);
+  }
+
+  lines.forEach(line => {
+    const l = line.toLowerCase();
+    const ch = line.match(/chapitre\s*(\d{1,3})\s*[:\-]?\s*(.*)$/i);
+    if (ch) {
+      chapitres.add(`Chapitre ${ch[1]}${ch[2] ? ` - ${ch[2].trim()}` : ''}`);
+    }
+
+    const tr = line.match(/^trope\s*:\s*(.+)$/i);
+    if (tr) tropes.add(tr[1].trim());
+
+    const pr = line.match(/^prenom\s*:\s*(.+)$/i);
+    if (pr) personnages.add(pr[1].trim());
+
+    const li = line.match(/^(lieu|ville|quartier|bar|hotel|manoir|port|organisation)\s*:\s*(.+)$/i);
+    if (li) lieux.add(li[2].trim());
+
+    if (/mafia|gang|cartel|parrain/.test(l)) sectionSuggestions.add('Organisation criminelle');
+    if (/magie|sort|pouvoir/.test(l)) sectionSuggestions.add('Systeme de magie');
+    if (/police|enquete|indice|suspect/.test(l)) sectionSuggestions.add('Enquete');
+    if (/timeline|chronologie|date/.test(l)) sectionSuggestions.add('Chronologie detaillee');
+  });
+
+  if (!sectionSuggestions.size) {
+    sectionSuggestions.add('Organisation');
+    sectionSuggestions.add('Objets cle');
+  }
+
+  lines.slice(0, 10).forEach(n => notes.add(n));
+
+  const draft = {
+    personnages: Array.from(personnages).slice(0, 20),
+    lieux: Array.from(lieux).slice(0, 20),
+    chapitres: Array.from(chapitres).slice(0, 20),
+    tropes: Array.from(tropes).slice(0, 20),
+    notes: Array.from(notes).slice(0, 20),
+    sectionSuggestions: Array.from(sectionSuggestions).slice(0, 10),
+  };
+
+  window._assistantBrainDraft = draft;
+  _assistantRenderBrainResults(draft);
+  showToast('Analyse terminee. Verifie puis applique.', 'success');
+}
+
+function assistantApplyBrainDump() {
+  const draft = window._assistantBrainDraft;
+  if (!draft) {
+    showToast('Aucune analyse prete', 'error');
+    return;
+  }
+
+  const id = state.currentProjectId;
+  const now = new Date().toISOString();
+  let addedChars = 0;
+  let addedLocs = 0;
+  let addedChaps = 0;
+  let addedNotes = 0;
+  let addedTropes = 0;
+
+  const chars = getProjectData(id, 'personnages') || [];
+  const charNames = new Set(chars.map(c => ([c.prenom, c.nom].filter(Boolean).join(' ').trim().toLowerCase())).filter(Boolean));
+  (draft.personnages || []).forEach(name => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key || charNames.has(key)) return;
+    const parts = String(name).trim().split(/\s+/);
+    const prenom = parts.shift() || name;
+    const nom = parts.join(' ');
+    chars.push({
+      id: uid(),
+      prenom,
+      nom,
+      age: '',
+      role: 'Secondaire',
+      notes: 'Cree depuis brain dump assistant',
+      createdAt: now,
+      updatedAt: now,
+    });
+    charNames.add(key);
+    addedChars++;
+  });
+  saveProjectData(id, 'personnages', chars);
+
+  const lieux = getProjectData(id, 'lieux') || [];
+  const locNames = new Set(lieux.map(l => (l.nom || '').trim().toLowerCase()).filter(Boolean));
+  (draft.lieux || []).forEach(name => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key || locNames.has(key)) return;
+    lieux.push({
+      id: uid(),
+      nom: String(name).trim(),
+      ville: '',
+      type: 'Résidence',
+      notes: 'Cree depuis brain dump assistant',
+      createdAt: now,
+      updatedAt: now,
+    });
+    locNames.add(key);
+    addedLocs++;
+  });
+  saveProjectData(id, 'lieux', lieux);
+
+  const chapitres = getProjectData(id, 'chapitres') || [];
+  const chapNums = new Set(chapitres.map(c => Number(c.numero)).filter(Boolean));
+  let nextNum = Math.max(0, ...Array.from(chapNums), 0) + 1;
+  (draft.chapitres || []).forEach(label => {
+    const m = String(label).match(/chapitre\s*(\d+)/i);
+    let numero = m ? Number(m[1]) : nextNum++;
+    if (!numero || chapNums.has(numero)) numero = nextNum++;
+    const titre = String(label).replace(/chapitre\s*\d+\s*[-:]?\s*/i, '').trim() || `Chapitre ${numero}`;
+    chapitres.push({
+      id: uid(),
+      numero,
+      titre,
+      pov: '',
+      statut: 'Brouillon',
+      resume: 'Genere depuis brain dump assistant',
+      notes: '',
+      createdAt: now,
+      updatedAt: now,
+    });
+    chapNums.add(numero);
+    addedChaps++;
+  });
+  saveProjectData(id, 'chapitres', chapitres);
+
+  const notes = getProjectData(id, 'notes') || [];
+  (draft.notes || []).slice(0, 8).forEach(text => {
+    notes.push({
+      id: uid(),
+      title: String(text).slice(0, 80),
+      type: 'idea',
+      content: String(text),
+      tags: ['brain-dump'],
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    addedNotes++;
+  });
+  saveProjectData(id, 'notes', notes);
+
+  const target = _assistantCurrentTarget();
+  (draft.tropes || []).forEach(t => {
+    _assistantPushKnowledge(target, { id: uid(), category: 'trope', text: String(t), ts: now });
+    addedTropes++;
+  });
+
+  touchProject(id);
+  if (state.currentSection === 'personnages') renderCharacters();
+  if (state.currentSection === 'lieux') renderLocations();
+  if (state.currentSection === 'chapitres') renderChapters();
+  if (state.currentSection === 'notes') renderNotes();
+  renderAssistant();
+
+  showToast(`Cree: ${addedChars} persos, ${addedLocs} lieux, ${addedChaps} chapitres, ${addedNotes} notes, ${addedTropes} tropes`, 'success');
+}
+
+function assistantSaveGlobalContext() {
+  const text = (document.getElementById('assistant-global-context')?.value || '').trim();
+  const scope = _assistantGetScope();
+  if (scope === 'universe' && _assistantUniverseId()) {
+    _assistantSaveUniverseContext(text);
+    showToast('Contexte univers enregistre', 'success');
+  } else {
+    const s = getAssistantState();
+    s.contextProject = text;
+    saveAssistantState(s);
+    showToast('Contexte livre enregistre', 'success');
+  }
+  renderAssistant();
+}
+
+function assistantGenerateContextDraft() {
+  const project = getProjects().find(p => p.id === state.currentProjectId);
+  const chars = getCharactersForProject(state.currentProjectId, true) || [];
+  const lieux = getLocationsForProject(state.currentProjectId, true) || [];
+  const chaps = getProjectData(state.currentProjectId, 'chapitres') || [];
+  const events = getProjectData(state.currentProjectId, 'events') || [];
+  const relations = getRelationsForProject(state.currentProjectId, true) || [];
+
+  const names = chars.slice(0, 8).map(c => [c.prenom, c.nom].filter(Boolean).join(' ')).filter(Boolean).join(', ');
+  const places = lieux.slice(0, 8).map(l => l.nom).filter(Boolean).join(', ');
+
+  const draft = [
+    `Projet: ${(project && project.name) || 'Sans nom'}`,
+    project && project.description ? `Pitch: ${project.description}` : 'Pitch: a completer',
+    names ? `Personnages cles: ${names}` : 'Personnages cles: a completer',
+    places ? `Lieux cles: ${places}` : 'Lieux cles: a completer',
+    `Structure actuelle: ${chaps.length} chapitre(s), ${events.length} evenement(s), ${relations.length} relation(s).`,
+    'Ton souhaite: a definir (ex: sombre, romantique, nerveux).',
+    'Contraintes narratives: a definir.',
+    'Secrets majeurs et moment de revelation: a definir.',
+  ].join('\n');
+
+  const el = document.getElementById('assistant-global-context');
+  if (el) el.value = draft;
+  showToast('Brouillon de contexte genere', 'success');
+}
+
+function _assistantGetDialogueSourceText() {
+  const input = (document.getElementById('assistant-dialogue-input')?.value || '').trim();
+  if (input) return input;
+
+  if (typeof editorState !== 'undefined' && editorState.quill) {
+    const txt = editorState.quill.getText().trim();
+    if (txt) return txt;
+  }
+
+  const ch = _assistantResolveChapterForProgression('');
+  if (ch) {
+    const txt = `${ch.titre || ''}\n${ch.contenu || ''}\n${ch.notes || ''}`.trim();
+    if (txt) return txt;
+  }
+  return '';
+}
+
+function _assistantDialogueSegments(text) {
+  const src = String(text || '');
+  const matches = [];
+  const re = /["«](.*?)["»]/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const seg = (m[1] || '').trim();
+    if (seg) matches.push(seg);
+  }
+  return matches;
+}
+
+function assistantDialogueAnalyze() {
+  const text = _assistantGetDialogueSourceText();
+  const reportEl = document.getElementById('assistant-dialogue-report');
+  if (!reportEl) return;
+  if (!text) {
+    reportEl.innerHTML = '<div class="settings-hint">Aucun texte a analyser.</div>';
+    showToast('Aucun texte pour Dialogue Doctor', 'error');
+    return;
+  }
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const dialogues = _assistantDialogueSegments(text);
+  const dialogueWords = dialogues.join(' ').split(/\s+/).filter(Boolean);
+  const ratio = words.length ? Math.round((dialogueWords.length / words.length) * 100) : 0;
+  const avgLine = dialogues.length ? Math.round(dialogues.reduce((a, x) => a + x.split(/\s+/).filter(Boolean).length, 0) / dialogues.length) : 0;
+
+  const advice = [];
+  if (ratio < 20) advice.push('Dialogue faible: ajoute des repliques courtes pour dynamiser.');
+  else if (ratio > 60) advice.push('Dialogue tres dense: garde des respirations narratives.');
+  else advice.push('Equilibre dialogue/narration correct.');
+  if (avgLine > 18) advice.push('Repliques longues: coupe en intentions courtes.');
+  if (!dialogues.length) advice.push('Aucune replique detectee (guillemets) dans cet extrait.');
+
+  reportEl.innerHTML = `
+    <div class="assistant-dialogue-box">
+      <strong>Analyse</strong>
+      <div>Mots total: ${words.length}</div>
+      <div>Repliques detectees: ${dialogues.length}</div>
+      <div>Ratio dialogue: ${ratio}%</div>
+      <div>Longueur moyenne replique: ${avgLine || 0} mot(s)</div>
+    </div>
+    <div class="assistant-dialogue-box">
+      <strong>Conseils</strong>
+      <div>${advice.map(x => `- ${esc(x)}`).join('<br>')}</div>
+    </div>
+  `;
+  showToast('Dialogue Doctor: analyse terminee', 'success');
+}
+
+function _assistantRewriteLine(line, style) {
+  const src = String(line || '').trim();
+  if (!src) return '';
+  const words = src.split(/\s+/);
+
+  if (style === 'naturel') {
+    return src
+      .replace(/\s+,/g, ',')
+      .replace(/\s+\./g, '.')
+      .replace(/\s+\!/g, '!')
+      .replace(/\s+\?/g, '?')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\bje ne\b/gi, 'je')
+      .replace(/\bnous ne\b/gi, 'on ne')
+      .trim();
+  }
+  if (style === 'tendu') {
+    const short = words.slice(0, Math.min(words.length, 12)).join(' ');
+    return `${short}${words.length > 12 ? '...' : ''} Fais-le. Maintenant.`;
+  }
+  if (style === 'sous-texte') {
+    return `${src.replace(/[!?]+$/,'')}. Tu vois tres bien ce que je veux dire.`;
+  }
+  if (style === 'sms') {
+    return src
+      .toLowerCase()
+      .replace(/que/g, 'ke')
+      .replace(/pour/g, 'pr')
+      .replace(/toujours/g, 'tjrs')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+  return src;
+}
+
+function assistantDialogueRewrite(style) {
+  const text = _assistantGetDialogueSourceText();
+  const reportEl = document.getElementById('assistant-dialogue-report');
+  if (!reportEl) return;
+  if (!text) {
+    reportEl.innerHTML = '<div class="settings-hint">Aucun texte a reecrire.</div>';
+    showToast('Aucun texte pour reecriture', 'error');
+    return;
+  }
+
+  const lines = _assistantDialogueSegments(text);
+  if (!lines.length) {
+    reportEl.innerHTML = '<div class="settings-hint">Aucune replique detectee. Ajoute des guillemets pour cibler les dialogues.</div>';
+    showToast('Aucune replique detectee', 'error');
+    return;
+  }
+
+  const rewritten = lines.slice(0, 8).map((ln, i) => ({
+    original: ln,
+    rewritten: _assistantRewriteLine(ln, style),
+    idx: i + 1,
+  }));
+
+  reportEl.innerHTML = rewritten.map(r => `
+    <div class="assistant-dialogue-box">
+      <strong>Replique ${r.idx} (${esc(style)})</strong>
+      <div><em>Avant:</em> ${esc(r.original)}</div>
+      <div><em>Apres:</em> ${esc(r.rewritten)}</div>
+    </div>
+  `).join('');
+  showToast(`Dialogue Doctor: version ${style} generee`, 'success');
+}
+
+function assistantQuickAsk(text) {
+  const input = document.getElementById('assistant-chat-input');
+  if (!input) return;
+  input.value = text;
+  assistantSendMessage();
+}
+
+function _assistantBuildActions(userText, knowledge, answerText) {
+  const q = String(userText || '').toLowerCase();
+  const out = [];
+
+  const add = action => {
+    if (!action || !action.type || !action.label) return;
+    if (out.some(x => x.type === action.type && x.label === action.label)) return;
+    out.push(action);
+  };
+
+  if ((/perso|personnage/.test(q)) && (/pas d idee|pas d'idée|creer|créer|invent|bloqu/.test(q))) {
+    const prenoms = _assistantGetKnowledge(knowledge, 'prenom').slice(0, 3);
+    const picks = prenoms.length ? prenoms : ['Lena', 'Milo', 'Viktor'];
+    picks.forEach(name => add({ type: 'create-character', label: `+ Creer ${name}`, name }));
+    add({ type: 'goto-section', label: 'Ouvrir Personnages', section: 'personnages' });
+  }
+
+  if (/musique|playlist|son/.test(q)) {
+    add({ type: 'goto-section', label: 'Ouvrir Playlists', section: 'playlists' });
+    add({ type: 'goto-section', label: 'Ouvrir Timeline', section: 'timeline' });
+  }
+
+  if (/dialogue|replique|réplique|conversation|sms/.test(q)) {
+    add({ type: 'open-dialogue-doctor', label: 'Ouvrir Dialogue Doctor' });
+  }
+
+  if (/section custom|nouvelle section|organisation|mafia|magie|enquete|enquête/.test(q)) {
+    add({ type: 'open-custom-section', label: '+ Creer une section custom' });
+  }
+
+  if (/coheren|incoheren|incoh|contradiction|secret|yeux/.test(q)) {
+    add({ type: 'run-consistency', label: 'Lancer analyse coherence' });
+    add({ type: 'run-canonical-facts', label: 'Verifier faits canoniques' });
+  }
+
+  if (/twist|rebondissement|plan|trope/.test(q)) {
+    const m = String(answerText || '').match(/base:\s*([^\)\n]+)/i);
+    if (m && m[1]) {
+      add({ type: 'add-trope', label: `+ Ajouter trope: ${m[1].trim()}`, trope: m[1].trim() });
+    }
+  }
+
+  if (/chapitre\s*\d+|j\s*ai fini|j'ai fini|prochain chapitre|chapitre suivant|chapitre\s*->|chapitre\s*vers/.test(q)) {
+    add({ type: 'chapter-bridge', label: 'Generer plan chapitre suivant' });
+  }
+
+  return out.slice(0, 6);
+}
+
+function _assistantIsReplayableAction(action) {
+  if (!action || !action.type) return false;
+  return ['goto-section', 'run-consistency', 'run-canonical-facts', 'open-custom-section', 'chapter-bridge', 'open-dialogue-doctor'].includes(action.type);
+}
+
+function _assistantExecuteChatAction(action) {
+  if (!action) return 'Action invalide.';
+  const id = state.currentProjectId;
+
+  if (action.type === 'goto-section' && action.section) {
+    navigateTo(action.section);
+    return `Section ouverte: ${action.section}`;
+  }
+  if (action.type === 'run-consistency') {
+    navigateTo('parametres');
+    if (typeof analyzeConsistencyNow === 'function') {
+      setTimeout(() => analyzeConsistencyNow(), 80);
+      return 'Analyse de coherence lancee.';
+    }
+    return 'Analyse coherence indisponible.';
+  }
+  if (action.type === 'run-canonical-facts') {
+    navigateTo('assistant');
+    setTimeout(() => assistantRunCanonicalFactCheck(), 60);
+    return 'Verification des faits canoniques lancee.';
+  }
+  if (action.type === 'open-custom-section') {
+    if (typeof openCustomSectionModal === 'function') {
+      openCustomSectionModal();
+      return 'Creation de section custom ouverte.';
+    }
+    return 'Section custom non disponible ici.';
+  }
+  if (action.type === 'open-dialogue-doctor') {
+    navigateTo('assistant');
+    setTimeout(() => {
+      const el = document.getElementById('assistant-dialogue-input');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      assistantDialogueAnalyze();
+    }, 80);
+    return 'Dialogue Doctor ouvert et analyse lancee.';
+  }
+  if (action.type === 'chapter-bridge') {
+    const scope = _assistantGetScope();
+    const knowledge = _assistantMergeKnowledge(scope);
+    const context = _assistantGetCombinedContext(scope);
+    const out = _assistantBuildChapterBridgePlan('', knowledge, context);
+    return out.answer || 'Plan chapitre suivant genere.';
+  }
+  if (action.type === 'create-next-chapter-draft') {
+    const list = getProjectData(id, 'chapitres') || [];
+    const exists = list.some(c => Number(c.numero) === Number(action.nextNumero));
+    if (exists) return `Le chapitre ${action.nextNumero} existe deja.`;
+
+    list.push({
+      id: uid(),
+      numero: Number(action.nextNumero) || (Math.max(0, ...list.map(c => Number(c.numero) || 0)) + 1),
+      titre: action.titre || `Chapitre ${(action.nextNumero || '?')}`,
+      pov: '',
+      statut: 'Brouillon',
+      resume: action.resume || 'Brouillon genere par assistant chapitre -> chapitre',
+      notes: action.notes || '',
+      contenu: '',
+      contenuHtml: '',
+      scenesIds: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    saveProjectData(id, 'chapitres', list);
+    touchProject(id);
+    if (state.currentSection === 'chapitres') renderChapters();
+    return `Brouillon cree: chapitre ${action.nextNumero}.`;
+  }
+  if (action.type === 'add-trope' && action.trope) {
+    const target = _assistantCurrentTarget();
+    _assistantPushKnowledge(target, { id: uid(), category: 'trope', text: String(action.trope), ts: new Date().toISOString() });
+    renderAssistant();
+    return `Trope ajoute dans ${_assistantTargetLabel(target)}: ${action.trope}`;
+  }
+  if (action.type === 'create-character' && action.name) {
+    const chars = getProjectData(id, 'personnages') || [];
+    const key = String(action.name).trim().toLowerCase();
+    const exists = chars.some(c => ([c.prenom, c.nom].filter(Boolean).join(' ').trim().toLowerCase() === key));
+    if (exists) return `${action.name} existe deja.`;
+
+    const parts = String(action.name).trim().split(/\s+/);
+    const prenom = parts.shift() || action.name;
+    const nom = parts.join(' ');
+    chars.push({
+      id: uid(),
+      prenom,
+      nom,
+      age: '',
+      role: 'Secondaire',
+      notes: 'Cree depuis action chat assistant',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    saveProjectData(id, 'personnages', chars);
+    touchProject(id);
+    if (state.currentSection === 'personnages') renderCharacters();
+    return `Personnage cree: ${action.name}`;
+  }
+
+  return 'Action executee.';
+}
+
+function assistantRunChatAction(msgIdx, actionIdx) {
+  const s = getAssistantState();
+  const msg = (s.chat || [])[msgIdx];
+  if (!msg || !Array.isArray(msg.actions) || !msg.actions[actionIdx]) return;
+
+  const action = msg.actions[actionIdx];
+  if (action.done) {
+    showToast('Action deja executee', 'error');
+    return;
+  }
+  const feedback = _assistantExecuteChatAction(action);
+
+  msg.actions[actionIdx] = {
+    ...action,
+    done: true,
+    doneAt: new Date().toISOString(),
+  };
+  s.chat.push({ role: 'assistant', text: feedback, ts: new Date().toISOString() });
+  if (s.chat.length > 170) s.chat = s.chat.slice(-170);
+  saveAssistantState(s);
+  renderAssistant();
+  showToast(feedback, 'success');
+}
+
+function assistantReplayChatAction(msgIdx, actionIdx) {
+  const s = getAssistantState();
+  const msg = (s.chat || [])[msgIdx];
+  if (!msg || !Array.isArray(msg.actions) || !msg.actions[actionIdx]) return;
+
+  const action = msg.actions[actionIdx];
+  if (!action.done) {
+    showToast('Action pas encore executee', 'error');
+    return;
+  }
+  if (!_assistantIsReplayableAction(action)) {
+    showToast('Cette action ne peut pas etre rejouee', 'error');
+    return;
+  }
+
+  const feedback = _assistantExecuteChatAction(action);
+  s.chat.push({ role: 'assistant', text: `Rejeu: ${feedback}`, ts: new Date().toISOString() });
+  if (s.chat.length > 170) s.chat = s.chat.slice(-170);
+  saveAssistantState(s);
+  renderAssistant();
+  showToast('Action rejouee', 'success');
+}
+
+function _assistantPersonaReply(text) {
+  const chars = getCharactersForProject(state.currentProjectId, true) || [];
+  const mode = document.getElementById('assistant-chat-mode')?.value || 'coach';
+  const lower = (text || '').toLowerCase();
+
+  if (mode === 'persona') {
+    const pid = document.getElementById('assistant-persona-id')?.value || '';
+    const c = chars.find(x => x.id === pid);
+    if (!c) return 'Choisis un personnage pour ce mode.';
+    const name = [c.prenom, c.nom].filter(Boolean).join(' ') || 'Perso';
+    const tone = (c.notes || '').slice(0, 90);
+    return [
+      `SMS - ${name}:`,
+      `"${lower.includes('chapitre') ? 'Ok, on avance. Garde la pression et montre le conflit tout de suite.' : 'Je te suis. Donne-moi la situation precise et je reagis en role.'}"`,
+      tone ? `Sous-texte du perso: ${tone}` : 'Sous-texte du perso: a completer dans sa fiche pour un rendu encore plus precis.',
+    ].join('\n');
+  }
+
+  if (mode === 'group') {
+    const ids = Array.from(document.getElementById('assistant-group-ids')?.selectedOptions || []).map(o => o.value);
+    const group = chars.filter(c => ids.includes(c.id)).slice(0, 4);
+    if (!group.length) return 'Selectionne au moins 1 personnage dans Groupe.';
+    const lines = group.map((c, i) => {
+      const name = [c.prenom, c.nom].filter(Boolean).join(' ') || `Perso ${i + 1}`;
+      const intents = ['On agit maintenant.', 'Attends, il manque une info.', 'Je ne fais confiance a personne.', 'On peut negocier.'];
+      return `${name}: "${intents[i % intents.length]}"`;
+    });
+    return ['Discussion de groupe (simulation):', ...lines, 'Dis-moi "version plus tendue" ou "version plus emotionnelle".'].join('\n');
+  }
+
+  return '';
+}
+
+function assistantSendMessage() {
+  const input = document.getElementById('assistant-chat-input');
+  if (!input) return;
+  let text = (input.value || '').trim();
+  if (!text) return;
+
+  const s = getAssistantState();
+  s.chat.push({ role: 'user', text, ts: new Date().toISOString() });
+
+  const modeReply = _assistantPersonaReply(text);
+  const scope = _assistantGetScope();
+  const knowledge = _assistantMergeKnowledge(scope);
+  const context = _assistantGetCombinedContext(scope);
+  const answer = modeReply || assistantBuildResponse(text, knowledge, context);
+
+  const actions = modeReply ? [] : _assistantBuildActions(text, knowledge, answer);
+
+  if (!modeReply && /chapitre\s*\d+|j\s*ai fini|j'ai fini|prochain chapitre|chapitre suivant|chapitre\s*->|chapitre\s*vers/i.test(text)) {
+    const bridge = _assistantBuildChapterBridgePlan(text, knowledge, context);
+    if (bridge && bridge.action && !actions.some(a => a.type === bridge.action.type && a.nextNumero === bridge.action.nextNumero)) {
+      actions.unshift(bridge.action);
+    }
+  }
+
+  s.chat.push({ role: 'assistant', text: answer, ts: new Date().toISOString(), actions });
+  if (s.chat.length > 150) s.chat = s.chat.slice(-150);
+  saveAssistantState(s);
+
+  input.value = '';
+  renderAssistant();
+}
+
+function _assistantPick(list, count) {
+  if (!list.length) return [];
+  const out = [];
+  const used = new Set();
+  while (out.length < Math.min(count, list.length)) {
+    const i = Math.floor(Math.random() * list.length);
+    if (used.has(i)) continue;
+    used.add(i);
+    out.push(list[i]);
+  }
+  return out;
+}
+
+function _assistantGetKnowledge(knowledge, category) {
+  return (knowledge || []).filter(k => k.category === category).map(k => k.text);
+}
+
+function _assistantScenarioIdeas(knowledge, contextText = '') {
+  const tropes = _assistantGetKnowledge(knowledge, 'trope');
+  const regles = _assistantGetKnowledge(knowledge, 'regle').slice(0, 3);
+  const universeRules = _assistantGetKnowledge(knowledge, 'univers').slice(0, 2);
+  const hooks = [
+    'Une promesse impossible force le protagoniste a choisir entre amour et loyaute.',
+    'Un secret de famille ressort et inverse les alliances.',
+    'Le personnage principal gagne ce qu\'il voulait, mais perd ce dont il avait besoin.',
+    'Une fausse victoire masque un danger plus grand.',
+    'Le mentor devient obstacle moral au pire moment.',
+  ];
+  const picks = _assistantPick(hooks, 3);
+  let out = 'Voici 3 pistes scenario avancees:\n';
+  picks.forEach((p, i) => {
+    const trope = tropes[i % (tropes.length || 1)] || 'trope libre';
+    out += `${i + 1}. ${p} (base: ${trope})\n`;
+  });
+  if (regles.length || universeRules.length) {
+    out += '\nContraintes appliquees:\n';
+    [...regles, ...universeRules].slice(0, 4).forEach(r => { out += `- ${r}\n`; });
+  }
+  if (contextText) {
+    out += `\nContexte prioritaire: ${contextText.split('\n')[0].slice(0, 120)}...`;
+  }
+  return out.trim();
+}
+
+function _assistantCharacterIdeas(knowledge) {
+  const prenoms = _assistantGetKnowledge(knowledge, 'prenom');
+  const tropes = _assistantGetKnowledge(knowledge, 'trope');
+  const roles = ['Protagoniste', 'Antagoniste', 'Secondaire cle', 'Mentor', 'Allie ambigu'];
+  const traits = ['controle', 'impulsif', 'charismatique', 'fuyant', 'obsessionnel', 'empathique'];
+  const wounds = ['abandon', 'trahison', 'honte', 'culpabilite', 'echec public'];
+
+  let out = 'Top idees de personnages:\n';
+  for (let i = 0; i < 5; i++) {
+    const name = prenoms[i % (prenoms.length || 1)] || `Personnage-${i + 1}`;
+    const role = roles[i % roles.length];
+    const trait = traits[(i + 2) % traits.length];
+    const wound = wounds[(i + 1) % wounds.length];
+    const trope = tropes[i % (tropes.length || 1)] || 'trope libre';
+    out += `${i + 1}. ${name} - ${role}. Trait dominant: ${trait}. Blessure: ${wound}. Axe narratif: ${trope}.\n`;
+  }
+  out += '\nSi tu veux, dis: "developpe le 2" et je te fais objectif, peur, besoin, arc et conflit.';
+  return out;
+}
+
+function _assistantResolveChapterForProgression(text) {
+  const chapters = (getProjectData(state.currentProjectId, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  if (!chapters.length) return null;
+
+  const low = String(text || '').toLowerCase();
+  const m = low.match(/chapitre\s*(\d{1,3})/);
+  if (m) {
+    const n = Number(m[1]);
+    const found = chapters.find(c => Number(c.numero) === n);
+    if (found) return found;
+  }
+
+  if (typeof editorState !== 'undefined' && editorState.type === 'chapter' && editorState.id) {
+    const current = chapters.find(c => c.id === editorState.id);
+    if (current) return current;
+  }
+
+  return chapters[chapters.length - 1];
+}
+
+function _assistantBuildChapterBridgePlan(text, knowledge, contextText = '') {
+  const current = _assistantResolveChapterForProgression(text);
+  const chapters = (getProjectData(state.currentProjectId, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  const events = getProjectData(state.currentProjectId, 'events') || [];
+  const tropes = _assistantGetKnowledge(knowledge, 'trope');
+
+  if (!current) {
+    return {
+      answer: 'Je ne trouve aucun chapitre. Cree d\'abord un chapitre pour activer l\'assistant chapitre -> chapitre.',
+      action: null,
+    };
+  }
+
+  const nextNum = Number(current.numero || 0) + 1;
+  const existingNext = chapters.find(c => Number(c.numero) === nextNum);
+  const currentTitle = current.titre || `Chapitre ${current.numero || '?'}`;
+  const linkedEvents = events.filter(e => (e.associated || []).some(a => a && a.type === 'chapitres' && a.id === current.id));
+  const lastEvent = linkedEvents.length ? linkedEvents[linkedEvents.length - 1] : null;
+  const tropeA = tropes[0] || 'conflit relationnel';
+  const tropeB = tropes[1] || 'revelation partielle';
+  const tropeC = tropes[2] || 'choix impossible';
+
+  const nextTitle = existingNext
+    ? (existingNext.titre || `Chapitre ${nextNum}`)
+    : `Chapitre ${nextNum} - Rupture`;
+
+  const summary = [
+    `Objectif narratif: transformer la consequence de ${currentTitle} en nouveau risque concret.`,
+    `Pivot central: ${tropeB}.`,
+    `Sortie de chapitre: decision irreversible qui pousse vers ${nextTitle}.`,
+  ].join(' ');
+
+  const beats = [
+    `Ouverture: retombee immediate de ${currentTitle}.`,
+    `Pression: complication active (${tropeA}).`,
+    `Pivot: info qui change les alliances (${tropeB}).`,
+    `Cloture: choix a cout eleve (${tropeC}).`,
+  ];
+
+  const answer = [
+    `Passage chapitre ${current.numero || '?'} -> ${nextNum}:`,
+    `Chapitre courant: ${currentTitle}.`,
+    lastEvent ? `Dernier event lie: ${lastEvent.titre || 'sans titre'} (${lastEvent.date || 'sans date'}).` : 'Aucun event lie au chapitre courant.',
+    '',
+    '3 trajectoires possibles:',
+    '1. Douce: renforcer l\'emotion et la consequence personnelle avant l\'action.',
+    '2. Medium: alterner tension externe et friction relationnelle.',
+    '3. Choc: revelation immediate + rupture de confiance en fin de chapitre.',
+    '',
+    'Beats proposes pour le prochain chapitre:',
+    ...beats.map((b, i) => `${i + 1}. ${b}`),
+    contextText ? `\nContrainte prioritaire: ${contextText.split('\n')[0].slice(0, 140)}...` : '',
+  ].filter(Boolean).join('\n');
+
+  const action = existingNext
+    ? null
+    : {
+      type: 'create-next-chapter-draft',
+      label: `+ Creer brouillon chapitre ${nextNum}`,
+      baseChapterId: current.id,
+      nextNumero: nextNum,
+      titre: nextTitle,
+      resume: summary,
+      notes: beats.join(' | '),
+    };
+
+  return { answer, action };
+}
+
+function _assistantSceneUnblock(knowledge, text = '') {
+  const tropes = _assistantGetKnowledge(knowledge, 'trope');
+  const cards = [
+    'Complication: une information vitale arrive trop tard.',
+    'Complication: le personnage se trompe de cible emotionnelle.',
+    'Pivot: un allie pose une condition impossible.',
+    'Pivot: une preuve invalide la certitude actuelle.',
+    'Sortie: mini-victoire a cout moral eleve.',
+    'Sortie: echec apparent qui ouvre un meilleur angle au chapitre suivant.',
+  ];
+  const picks = _assistantPick(cards, 4);
+  let out = 'Blocage detecte: voici 4 mouvements de scene possibles:\n';
+  picks.forEach((p, i) => {
+    const trope = tropes[i % (tropes.length || 1)] || 'coherence interne';
+    out += `${i + 1}. ${p} (ancrage: ${trope})\n`;
+  });
+  if (/chapitre\s*\d+/.test((text || '').toLowerCase())) {
+    out += '\nTu as mentionne un chapitre precis: je peux aussi te proposer une transition propre vers le chapitre suivant.';
+  }
+  out += '\nChoisis un numero et je te propose la version douce, medium ou choc.';
+  return out;
+}
+
+function _assistantThreeActPlan(knowledge) {
+  const tropes = _assistantGetKnowledge(knowledge, 'trope');
+  const t1 = tropes[0] || 'conflit relationnel';
+  const t2 = tropes[1] || 'secret revele';
+  const t3 = tropes[2] || 'choix impossible';
+  return [
+    'Plan 3 actes (base sur tes donnees):',
+    `Acte I: Mise en place + incident declencheur (${t1}).`,
+    `Acte II: Escalade + point milieu + crise (${t2}).`,
+    `Acte III: Confrontation finale + resolution avec cout (${t3}).`,
+    'Je peux te convertir ce plan en 12 beats detailles si tu veux.',
+  ].join('\n');
+}
+
+function _assistantProjectSummary() {
+  const id = state.currentProjectId;
+  const chars = (getCharactersForProject(id, true) || []).length;
+  const locs = (getLocationsForProject(id, true) || []).length;
+  const chaps = (getProjectData(id, 'chapitres') || []).length;
+  const scenes = (getProjectData(id, 'scenes') || []).length;
+  const rels = (getRelationsForProject(id, true) || []).length;
+  return `Etat du projet: ${chars} perso(s), ${locs} lieu(x), ${rels} relation(s), ${chaps} chapitre(s), ${scenes} scene(s).`;
+}
+
+function assistantBuildResponse(text, knowledge, contextText = '') {
+  const q = text.toLowerCase();
+
+  if (/bonjour|salut|hello|yo/.test(q)) {
+    return `Salut. ${_assistantProjectSummary()}\nParle-moi normalement et je te guide pas a pas.`;
+  }
+  if (/resume|etat du projet|ou j en suis|où j'en suis/.test(q)) {
+    return _assistantProjectSummary();
+  }
+  if (/musique|playlist|son/.test(q)) {
+    return _assistantRecommendMusic(text);
+  }
+  if (/scene bibliotheque|scene globale|bibliotheque de scene|bibliothèque de scène/.test(q)) {
+    return _assistantSuggestLibraryScene(text);
+  }
+  if (/contradiction|incoherence|incoh|yeux|secret/.test(q)) {
+    return _assistantContradictionScan();
+  }
+  if (/canon|canoniq|faits?\s+canon|memoire des faits/.test(q)) {
+    const r = _assistantComputeCanonicalFactCheck(_assistantGetScope());
+    return [
+      `Memoire canonique: ${r.factsCount} fait(s) - ${r.errors} erreur(s), ${r.warnings} avertissement(s).`,
+      r.items[0] ? `Priorite: ${r.items[0].title} - ${r.items[0].text}` : 'Aucune alerte prioritaire.',
+      'Tu peux cliquer sur "Verifier faits canoniques" pour le rapport detaille.',
+    ].join('\n');
+  }
+  if (/dialogue|replique|réplique|conversation|sms/.test(q)) {
+    const sample = _assistantGetDialogueSourceText();
+    const lines = _assistantDialogueSegments(sample);
+    const words = String(sample || '').split(/\s+/).filter(Boolean).length;
+    const dwords = lines.join(' ').split(/\s+/).filter(Boolean).length;
+    const ratio = words ? Math.round((dwords / words) * 100) : 0;
+    return [
+      `Dialogue Doctor: ${lines.length} replique(s) detectee(s), ratio dialogue ${ratio}% .`,
+      'Styles disponibles: naturel, tendu, sous-texte, sms.',
+      'Clique sur "Ouvrir Dialogue Doctor" pour analyser et generer des variantes de repliques.',
+    ].join('\n');
+  }
+  if (/section custom|nouvelle section|organisation|mafia|systeme de magie|système de magie/.test(q)) {
+    return _assistantSuggestCustomSections(text);
+  }
+  if ((/perso|personnage/.test(q)) && (/pas d idee|pas d'idée|bloqu|creer|créer|invent/.test(q))) {
+    return _assistantCharacterIdeas(knowledge);
+  }
+  if (/chapitre\s*\d+\s*(?:et|-|a|à)\s*\d+|chapitre\s*\d+\s*vers\s*\d+|j\s*ai fini|j'ai fini|prochain chapitre|chapitre suivant/.test(q)) {
+    const bridge = _assistantBuildChapterBridgePlan(text, knowledge, contextText);
+    return bridge.answer;
+  }
+  if (/bloqu|pas d idee|pas d'idée|scene|scène/.test(q)) {
+    return _assistantSceneUnblock(knowledge, text);
+  }
+  if (/twist|rebondissement|surprise/.test(q)) {
+    return _assistantScenarioIdeas(knowledge, contextText);
+  }
+  if (/3 actes|trois actes|plan/.test(q)) {
+    return _assistantThreeActPlan(knowledge);
+  }
+  if (/coheren|incoheren|incoh/.test(q)) {
+    return 'Tu peux lancer l\'analyse dans Parametres > Analyse de coherence. Je peux aussi te preparer une checklist coherence scene par scene.';
+  }
+  if (/regle|r[eé]ecrit|style|dialogue/.test(q)) {
+    const regs = _assistantGetKnowledge(knowledge, 'regle');
+    if (!regs.length) {
+      return 'Ajoute d\'abord tes regles d\'ecriture dans la Bibliotheque assistant (categorie Regle ecriture), puis je pourrai te proposer des reecritures guidees.';
+    }
+    return `J\'ai ${regs.length} regle(s) de style en base. Envoie un extrait et je te propose une version dialogue plus naturelle, tout en respectant tes regles.`;
+  }
+
+  return [
+    'Je peux t\'aider en mode discussion naturelle, avec les donnees de ton projet.',
+    'Exemples utiles:',
+    '- "Je veux creer un perso mais pas d\'idee"',
+    '- "J\'ai fini le chapitre 3, aide-moi pour le 4"',
+    '- "Trouve une musique pour ce chapitre"',
+    '- "Simule un groupe Lena/Milo/Viktor"',
+    '- "Propose une section custom pour mon histoire de mafia"',
+    '',
+    _assistantProjectSummary(),
+  ].join('\n');
+}
+
 // Init sync UI whenever settings is rendered
 const _origRenderSettings = typeof renderSettings === 'function' ? renderSettings : null;
 document.addEventListener('DOMContentLoaded', () => {
@@ -1643,5 +4019,6 @@ function renderFeatureSection(section) {
   switch (section) {
     case 'citations': renderCitations(); break;
     case 'journal':   renderJournal();   break;
+    case 'assistant': renderAssistant(); break;
   }
 }

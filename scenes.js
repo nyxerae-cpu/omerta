@@ -1727,8 +1727,8 @@ function openGlobalSectionModal(sectionId) {
   document.getElementById('gs-nom').value = '';
   document.getElementById('gs-icone').value = '📁';
   document.getElementById('gs-affichage').value = 'cards';
-  document.getElementById('gs-description').value = '';
-  document.getElementById('gs-tags').value = '';
+  document.getElementById('gsec-description').value = '';
+  document.getElementById('gsec-tags').value = '';
   document.getElementById('gs-delete-btn').style.display = sectionId ? 'inline-block' : 'none';
 
   const icons = ['📁','🔮','⚔️','💭','🔐','📦','🌟','💎','🎭','🗝️','📜','🌍','🎵','🐉','🧙','🏰','⚗️','🌸','🎨','📚','🔬','🧩','🎯','💡','🔑'];
@@ -1745,8 +1745,8 @@ function openGlobalSectionModal(sectionId) {
       document.getElementById('gs-nom').value = s.nom;
       document.getElementById('gs-icone').value = s.icone || '📁';
       document.getElementById('gs-affichage').value = s.typeAffichage || 'cards';
-      document.getElementById('gs-description').value = s.description || '';
-      document.getElementById('gs-tags').value = (s.tags || []).join(', ');
+      document.getElementById('gsec-description').value = s.description || '';
+      document.getElementById('gsec-tags').value = (s.tags || []).join(', ');
       _gsSectionChamps = (s.champs || []).map(f => ({...f}));
     }
   }
@@ -1809,8 +1809,8 @@ function saveGlobalSection() {
   }
   const icone = document.getElementById('gs-icone').value.trim() || '📁';
   const typeAffichage = document.getElementById('gs-affichage').value;
-  const description = document.getElementById('gs-description').value.trim();
-  const tags = document.getElementById('gs-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const description = document.getElementById('gsec-description').value.trim();
+  const tags = document.getElementById('gsec-tags').value.split(',').map(t => t.trim()).filter(Boolean);
   const now = new Date().toISOString();
 
   const sections = getGlobalSections();

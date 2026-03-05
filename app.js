@@ -10,12 +10,30 @@
 // ============================================================
 const state = {
   currentProjectId: null,
+  currentUniverseId: null,
   currentSection:   'dashboard',
   editingId:        null,
+  editingSource:    'project',
+  suppressHashRouting: false,
   sidebarCollapsed: false,
   confirmCallback:  null,
   relationsView:     'list',   // 'list' or 'graph'
 };
+
+const perfState = {
+  lowPower: false,
+};
+
+function isAppActive() {
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+function shouldUseLowPowerMode() {
+  const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const externalScreenLikely = Math.max(window.innerWidth, window.innerHeight) >= 1400;
+  const lowMemoryDevice = typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4;
+  return reducedMotion || externalScreenLikely || lowMemoryDevice;
+}
 
 // simple DOM cache to avoid repeated lookups
 const elCache = {};
@@ -32,6 +50,93 @@ function getProjects() {
 }
 function saveProjects(list) {
   localStorage.setItem('projets_liste', JSON.stringify(list));
+}
+
+function getUniverses() {
+  return JSON.parse(localStorage.getItem('univers_liste') || '[]');
+}
+function saveUniverses(list) {
+  localStorage.setItem('univers_liste', JSON.stringify(list));
+}
+function getUniverseById(universeId) {
+  if (!universeId) return null;
+  return getUniverses().find(u => u.id === universeId) || null;
+}
+
+function getUniverseData(universeId, type) {
+  return JSON.parse(localStorage.getItem(`univers_${universeId}_${type}`) || '[]');
+}
+function saveUniverseData(universeId, type, data) {
+  localStorage.setItem(`univers_${universeId}_${type}`, JSON.stringify(data));
+}
+
+function getProjectUniverseId(projectId = state.currentProjectId) {
+  const p = getProjects().find(x => x.id === projectId);
+  return p?.universeId || null;
+}
+
+function getCharactersForProject(projectId, includeShared = true) {
+  const localChars = (getProjectData(projectId, 'personnages') || []).map(c => ({ ...c, _source: 'project' }));
+  if (!includeShared) return localChars;
+  const universeId = getProjectUniverseId(projectId);
+  if (!universeId) return localChars;
+  const sharedChars = (getUniverseData(universeId, 'personnages') || []).map(c => ({ ...c, _source: 'universe' }));
+  const localIds = new Set(localChars.map(c => c.id));
+  const filteredShared = sharedChars.filter(c => !localIds.has(c.id));
+  return [...localChars, ...filteredShared];
+}
+
+function getLocationsForProject(projectId, includeShared = true) {
+  const localLocs = (getProjectData(projectId, 'lieux') || []).map(l => ({ ...l, _source: 'project' }));
+  if (!includeShared) return localLocs;
+  const universeId = getProjectUniverseId(projectId);
+  if (!universeId) return localLocs;
+  const sharedLocs = (getUniverseData(universeId, 'lieux') || []).map(l => ({ ...l, _source: 'universe' }));
+  const localIds = new Set(localLocs.map(l => l.id));
+  const filteredShared = sharedLocs.filter(l => !localIds.has(l.id));
+  return [...localLocs, ...filteredShared];
+}
+
+function relationPairKey(personA, personB, type = '') {
+  const [a, b] = [personA, personB].sort();
+  return `${a}|${b}|${(type || '').toLowerCase().trim()}`;
+}
+
+function relationCacheKey(relId, source = 'project') {
+  return `${source || 'project'}:${relId}`;
+}
+
+function isRelationBidirectional(type = '', description = '') {
+  const t = (type || '').toLowerCase();
+  const d = (description || '').toLowerCase();
+  if (['amitié', 'famille', 'amour/romance', 'frère/sœur', 'soeur/frere'].includes(t)) return true;
+  return /(fr[eè]re|soeur|sœur|brother|sister|cousin|jum(e|é)au|famille)/i.test(d);
+}
+
+function normalizeRelationPair(personA, personB, type = '', description = '') {
+  if (!isRelationBidirectional(type, description)) return { personA, personB };
+  const [a, b] = [personA, personB].sort();
+  return { personA: a, personB: b };
+}
+
+function getRelationsForProject(projectId, includeShared = true) {
+  const localRels = (getProjectData(projectId, 'relations') || []).map(r => ({ ...r, _source: 'project' }));
+  if (!includeShared) return localRels;
+  const universeId = getProjectUniverseId(projectId);
+  if (!universeId) return localRels;
+  const sharedRels = (getUniverseData(universeId, 'relations') || []).map(r => ({ ...r, _source: 'universe' }));
+  const localKeys = new Set(localRels.map(r => relationPairKey(r.personA, r.personB, r.type)));
+  const filteredShared = sharedRels.filter(r => !localKeys.has(relationPairKey(r.personA, r.personB, r.type)));
+  return [...localRels, ...filteredShared];
+}
+
+function renderUniverseSelectOptions(selectId, selectedUniverseId = '') {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const universes = getUniverses().sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  sel.innerHTML = '<option value="">— Aucun univers —</option>' +
+    universes.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+  sel.value = selectedUniverseId || '';
 }
 
 function getProjectData(projectId, type) {
@@ -77,6 +182,48 @@ function esc(str) {
   return d.innerHTML;
 }
 
+function _baseAppUrl() {
+  const base = location.href.split('#')[0].replace(/[^/]*$/, '');
+  return base + 'index.html';
+}
+
+function openQrSharePage() {
+  const base = location.href.split('#')[0].replace(/[^/]*$/, '');
+  const appUrl = _baseAppUrl();
+  const syncCode = localStorage.getItem('wb_sync_bin_id') || '';
+  const params = new URLSearchParams({ url: appUrl });
+  if (syncCode) params.set('code', syncCode);
+  window.open(base + 'qr.html?' + params.toString(), '_blank', 'noopener');
+}
+
+function openStandaloneSnapshot() {
+  const base = location.href.split('#')[0].replace(/[^/]*$/, '');
+  window.open(base + 'index_complet.html', '_blank', 'noopener');
+}
+
+function showTunnelCommand() {
+  const cmd = 'node tunnel.js';
+  navigator.clipboard?.writeText(cmd).then(
+    () => showToast('Commande copiée: ' + cmd, 'success'),
+    () => showToast('Lance cette commande en terminal: ' + cmd, 'info')
+  );
+}
+
+function initCordovaBridge() {
+  const looksLikeCordova = location.protocol === 'file:' || /cordova/i.test(navigator.userAgent || '');
+  if (!looksLikeCordova) return;
+
+  const inject = src => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    document.head.appendChild(s);
+  };
+
+  inject('cordova.js');
+  inject('cordova_plugins.js');
+}
+
 // ---------------------------------------------------------
 // Global search helpers (used by keyboard ctl+k)
 function performGlobalSearch(q) {
@@ -86,7 +233,7 @@ function performGlobalSearch(q) {
   const id = state.currentProjectId;
   if (!id) return out;
   out.personnages = getProjectData(id,'personnages').filter(x=>([x.prenom,x.nom].join(' ')||'').toLowerCase().includes(q));
-  out.lieux = getProjectData(id,'lieux').filter(x=>x.nom.toLowerCase().includes(q));
+  out.lieux = getLocationsForProject(id,true).filter(x=>x.nom.toLowerCase().includes(q));
   out.chapitres = getProjectData(id,'chapitres').filter(x=>x.titre.toLowerCase().includes(q));
   out.scenes = getProjectData(id,'scenes').filter(x=>x.titre.toLowerCase().includes(q));
   out.relations = getProjectData(id,'relations').filter(x=>x.type.toLowerCase().includes(q));
@@ -118,7 +265,8 @@ function showSearchResults(res) {
 
 function activateSearchResult(type, id) {
   if (!type || !id) return;
-  navigateTo(type); // section IDs match keys
+  const targetSection = type === 'events' ? 'timeline' : type;
+  navigateTo(targetSection);
   switch(type) {
     case 'personnages': openCharacterModal(id); break;
     case 'lieux': openLocationModal(id); break;
@@ -196,6 +344,8 @@ function initAccessibilityHelpers() {
 }
 
 document.addEventListener('DOMContentLoaded', initAccessibilityHelpers);
+document.addEventListener('DOMContentLoaded', initPwaInstall);
+document.addEventListener('DOMContentLoaded', initCordovaBridge);
 
 // simple debounce helper
 function debounce(fn, delay) {
@@ -230,13 +380,68 @@ function showToast(msg, type = '') {
 }
 
 // ============================================================
+// PWA INSTALL PROMPT
+// ============================================================
+let deferredInstallPrompt = null;
+
+function isRunningStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function setInstallButtonVisible(visible) {
+  const btn = document.getElementById('install-app-btn');
+  if (!btn) return;
+  btn.classList.toggle('hidden', !visible);
+}
+
+function initPwaInstall() {
+  setInstallButtonVisible(false);
+
+  if (isRunningStandalone()) return;
+
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    setInstallButtonVisible(true);
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    setInstallButtonVisible(false);
+    showToast('Application installée', 'success');
+  });
+}
+
+async function installPWA() {
+  if (!deferredInstallPrompt) {
+    showToast('Installation non disponible pour le moment', 'error');
+    return;
+  }
+
+  deferredInstallPrompt.prompt();
+  const choiceResult = await deferredInstallPrompt.userChoice;
+
+  if (choiceResult.outcome === 'accepted') {
+    showToast('Installation lancée', 'success');
+  }
+
+  deferredInstallPrompt = null;
+  setInstallButtonVisible(false);
+}
+
+// ============================================================
 // HOME PAGE
 // ============================================================
 function showHomePage() {
   state.currentProjectId = null;
+  state.currentUniverseId = null;
   document.getElementById('home-page').classList.remove('hidden');
   document.getElementById('project-page').classList.add('hidden');
+  document.getElementById('assistant-library-page')?.classList.add('hidden');
+  document.getElementById('project-page').classList.remove('page-mode');
+  if (location.hash !== '#/home') location.hash = '#/home';
   renderProjectCards();
+  if (deferredInstallPrompt && !isRunningStandalone()) setInstallButtonVisible(true);
 }
 
 function renderProjectCards(searchResults=null) {
@@ -275,10 +480,12 @@ function appendProjectCardsChunk() {
   const html = slice.map(p => {
     const chars = getProjectData(p.id, 'personnages').length;
     const chaps = getProjectData(p.id, 'chapitres').length;
+    const uniName = getUniverseById(p.universeId)?.name || '';
     return `
       <div class="project-card" tabindex="0" onkeydown="if(event.key==='Enter')openProject('${p.id}')">
         <div class="project-card-name">${esc(p.name)}</div>
         <div class="project-card-desc">${esc(p.description) || '<span style="color:var(--gray-300)">Aucune description</span>'}</div>
+        ${uniName ? `<div class="project-card-date">🌐 Univers: ${esc(uniName)}</div>` : ''}
         <div class="project-card-meta">
           <div class="meta-item">👤 <strong>${chars}</strong> personnage${chars !== 1 ? 's' : ''}</div>
           <div class="meta-item">📖 <strong>${chaps}</strong> chapitre${chaps !== 1 ? 's' : ''}</div>
@@ -311,7 +518,8 @@ function renderHomeSearch() {
     return;
   }
   const projects = getProjects().filter(p => {
-    return p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q);
+    const uniName = getUniverseById(p.universeId)?.name || '';
+    return p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q) || uniName.toLowerCase().includes(q);
   });
   // render dropdown
   let html = '';
@@ -336,20 +544,53 @@ document.addEventListener('click', e=>{
 function openNewProjectModal() {
   document.getElementById('new-project-name').value = '';
   document.getElementById('new-project-desc').value = '';
+  renderUniverseSelectOptions('new-project-universe');
   openModal('modal-new-project');
   setTimeout(() => document.getElementById('new-project-name').focus(), 80);
+}
+
+function openNewUniverseModal() {
+  document.getElementById('new-universe-name').value = '';
+  document.getElementById('new-universe-desc').value = '';
+  openModal('modal-new-universe');
+  setTimeout(() => document.getElementById('new-universe-name').focus(), 80);
+}
+
+function createUniverse() {
+  const name = document.getElementById('new-universe-name').value.trim();
+  const desc = document.getElementById('new-universe-desc').value.trim();
+  if (!name) { showToast('Le nom de l\'univers est requis', 'error'); return; }
+  const now = new Date().toISOString();
+  const u = { id: uid(), name, description: desc, createdAt: now, updatedAt: now };
+  const list = getUniverses();
+  list.push(u);
+  saveUniverses(list);
+  closeModal('modal-new-universe');
+  renderUniverseSelectOptions('new-project-universe', u.id);
+  showToast('Univers créé', 'success');
 }
 
 function createProject() {
   const name = document.getElementById('new-project-name').value.trim();
   const desc = document.getElementById('new-project-desc').value.trim();
+  const universeId = document.getElementById('new-project-universe')?.value || '';
   if (!name) { showToast('Le nom du projet est requis', 'error'); return; }
 
   const now = new Date().toISOString();
-  const p   = { id: uid(), name, description: desc, createdAt: now, updatedAt: now };
+  const p   = { id: uid(), name, description: desc, universeId: universeId || null, createdAt: now, updatedAt: now };
   const list = getProjects();
   list.push(p);
   saveProjects(list);
+
+  if (universeId) {
+    const universes = getUniverses();
+    const idx = universes.findIndex(u => u.id === universeId);
+    if (idx !== -1) {
+      universes[idx].updatedAt = now;
+      saveUniverses(universes);
+    }
+  }
+
   closeModal('modal-new-project');
   showToast('Projet créé !', 'success');
   openProject(p.id);
@@ -358,24 +599,26 @@ function createProject() {
 // ============================================================
 // OPEN PROJECT
 // ============================================================
-function openProject(projectId) {
+function openProject(projectId, initialSection = 'dashboard', skipHash = false) {
   const projects = getProjects();
   const project  = projects.find(p => p.id === projectId);
   if (!project) return;
 
   state.currentProjectId = projectId;
+  state.currentUniverseId = project.universeId || null;
 
   // ensure schema for existing data (add missing new fields with defaults)
   migrateProjectSchema(projectId);
 
   document.getElementById('home-page').classList.add('hidden');
+  document.getElementById('assistant-library-page')?.classList.add('hidden');
   document.getElementById('project-page').classList.remove('hidden');
   document.getElementById('project-name-header').textContent = project.name;
 
   // Close dropdown if open
   document.getElementById('project-dropdown').classList.add('hidden');
 
-  navigateTo('dashboard');
+  navigateTo(initialSection || 'dashboard', { skipHash });
 
   // appearance and backup
   const prefs = getProjectPrefs(projectId);
@@ -428,6 +671,7 @@ function duplicateProject(projectId) {
       id: newId,
       name: p.name + ' (copie)',
       description: p.description,
+      universeId: p.universeId || null,
       createdAt: now,
       updatedAt: now
     };
@@ -459,7 +703,18 @@ function confirmDeleteCurrentProject() {
 // NAVIGATION
 // ============================================================
 function navigateTo(section) {
+  if (!section) section = 'dashboard';
+  const opts = arguments[1] || {};
+  const skipHash = !!opts.skipHash;
   state.currentSection = section;
+
+  const projectPageEl = document.getElementById('project-page');
+  if (projectPageEl) projectPageEl.classList.add('page-mode');
+
+  if (!skipHash && state.currentProjectId) {
+    const nextHash = `#/project/${state.currentProjectId}/${section}`;
+    if (location.hash !== nextHash) location.hash = nextHash;
+  }
 
   // Update nav active state
   document.querySelectorAll('.nav-item').forEach(el => {
@@ -482,15 +737,134 @@ function navigateTo(section) {
     case 'playlists':    renderPlaylists();   break;
     case 'timeline':     renderTimeline();    break;
     case 'notes':        renderNotes();       break;
+    case 'journal':
+      if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
+      break;
+    case 'assistant':
+      if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
+      break;
     case 'parametres':   renderSettings();    break;
     case 'citations':
-    case 'journal':
       if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
       break;
   }
 
   // On mobile, auto-close sidebar
   if (window.innerWidth <= 768) closeSidebarMobile();
+}
+
+function _parseHashRoute() {
+  const hash = (location.hash || '').trim();
+  if (!hash || hash === '#') return { type: 'home' };
+  if (hash === '#/home') return { type: 'home' };
+
+  const em = hash.match(/^#\/project\/([^/]+)\/(character|location|note|relation|playlist|event)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+  if (em) {
+    return {
+      type: 'entity',
+      projectId: em[1],
+      entity: em[2],
+      entityId: em[3] && em[3] !== 'new' ? em[3] : null,
+      source: em[4] || 'project',
+    };
+  }
+
+  const m = hash.match(/^#\/project\/([^/]+)(?:\/([^/]+))?$/);
+  if (!m) return null;
+  return {
+    type: 'project',
+    projectId: m[1],
+    section: m[2] || 'dashboard',
+  };
+}
+
+function _applyHashRoute() {
+  if (state.suppressHashRouting) return;
+  const route = _parseHashRoute();
+  if (!route) return;
+  if (route.type === 'home') {
+    if (state.currentProjectId !== null) showHomePage();
+    return;
+  }
+  if (route.type === 'entity') {
+    if (state.currentProjectId !== route.projectId) {
+      const baseSection = route.entity === 'character' ? 'personnages'
+        : (route.entity === 'location' ? 'lieux'
+          : (route.entity === 'relation' ? 'relations'
+            : (route.entity === 'playlist' ? 'playlists'
+              : (route.entity === 'event' ? 'timeline' : 'notes'))));
+      openProject(route.projectId, baseSection, true);
+    }
+    const openOpts = { skipHash: true };
+    if (route.entity === 'character') openCharacterModal(route.entityId, route.source, openOpts);
+    else if (route.entity === 'location') openLocationModal(route.entityId, route.source, openOpts);
+    else if (route.entity === 'relation') openRelationModal(route.entityId, route.source, openOpts);
+    else if (route.entity === 'playlist') openPlaylistModal(route.entityId, openOpts);
+    else if (route.entity === 'event') openEventModal(route.entityId, openOpts);
+    else if (route.entity === 'note') openNoteModal(route.entityId, openOpts);
+    return;
+  }
+  if (route.type === 'project') {
+    if (state.currentProjectId !== route.projectId) {
+      openProject(route.projectId, route.section, true);
+    } else {
+      navigateTo(route.section, { skipHash: true });
+    }
+  }
+}
+
+function _setEntityHashRoute(entityType, entityId = null, source = 'project') {
+  if (!state.currentProjectId) return;
+  const idPart = entityId || 'new';
+  const srcPart = source || 'project';
+  const nextHash = `#/project/${state.currentProjectId}/${entityType}/${idPart}/${srcPart}`;
+  if (location.hash === nextHash) return;
+  state.suppressHashRouting = true;
+  location.hash = nextHash;
+  setTimeout(() => { state.suppressHashRouting = false; }, 0);
+}
+
+function _restoreSectionHashRoute() {
+  if (!state.currentProjectId) return;
+  const section = state.currentSection || 'dashboard';
+  const nextHash = `#/project/${state.currentProjectId}/${section}`;
+  if (location.hash === nextHash) return;
+  state.suppressHashRouting = true;
+  location.hash = nextHash;
+  setTimeout(() => { state.suppressHashRouting = false; }, 0);
+}
+
+let _assistantLibraryPreviousPage = 'home';
+
+function openAssistantLibrary() {
+  const homePage = document.getElementById('home-page');
+  const projectPage = document.getElementById('project-page');
+  const assistantLibraryPage = document.getElementById('assistant-library-page');
+  if (!assistantLibraryPage) return;
+
+  _assistantLibraryPreviousPage = homePage && homePage.classList.contains('hidden') ? 'project' : 'home';
+  if (homePage) homePage.classList.add('hidden');
+  if (projectPage) projectPage.classList.add('hidden');
+  assistantLibraryPage.classList.remove('hidden');
+
+  if (typeof renderAssistantHubLibrary === 'function') renderAssistantHubLibrary();
+
+  const kbInput = document.getElementById('assistant-hub-kb-input');
+  if (kbInput) {
+    kbInput.focus();
+    kbInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function closeAssistantLibrary() {
+  const assistantLibraryPage = document.getElementById('assistant-library-page');
+  if (assistantLibraryPage) assistantLibraryPage.classList.add('hidden');
+
+  if (_assistantLibraryPreviousPage === 'project' && state.currentProjectId) {
+    document.getElementById('project-page')?.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('home-page')?.classList.remove('hidden');
 }
 
 // ============================================================
@@ -552,10 +926,11 @@ function renderDropdown() {
 // ============================================================
 let dashboardChart = null; // global reference for bar overview chart
 let relTypesChart = null, chapStatusChart = null, roleChart = null;
+let dashboardNetwork = null;
 function renderDashboard() {
   const id    = state.currentProjectId;
   const chars = getProjectData(id, 'personnages');
-  const locs  = getProjectData(id, 'lieux');
+  const locs  = getLocationsForProject(id, true);
   const rels  = getProjectData(id, 'relations');
   const chaps = getProjectData(id, 'chapitres');
 
@@ -565,6 +940,7 @@ function renderDashboard() {
   document.getElementById('stat-chapitres').textContent   = chaps.length;
 
   // overall counts bar chart (dashboard-chart)
+  const chartAnimation = perfState.lowPower ? false : { duration: 350 };
   const barCtx = document.getElementById('dashboard-chart');
   if (barCtx) {
     const scenes = getProjectData(id,'scenes').length;
@@ -576,12 +952,12 @@ function renderDashboard() {
     if (!dashboardChart) {
       dashboardChart = new Chart(barCtx.getContext('2d'), {
         type: 'bar', data: { labels, datasets:[{label:'Total', data, backgroundColor:'var(--primary)'}] },
-        options:{responsive:true,maintainAspectRatio:false}
+        options:{responsive:true,maintainAspectRatio:false,animation:chartAnimation}
       });
     } else {
       dashboardChart.data.labels = labels;
       dashboardChart.data.datasets[0].data = data;
-      dashboardChart.update();
+      dashboardChart.update(perfState.lowPower ? 'none' : undefined);
     }
   }
 
@@ -603,12 +979,13 @@ function renderDashboard() {
   const relCtx = document.getElementById('chart-rel-types').getContext('2d');
   if (!relTypesChart) {
     relTypesChart = new Chart(relCtx, {
-      type:'pie', data:{labels:Object.keys(relTypes), datasets:[{data:Object.values(relTypes), backgroundColor:['#2196F3','#E91E63','#FF9800','#9C27B0','#4CAF50','#F44336','gray']}]}
+      type:'pie', data:{labels:Object.keys(relTypes), datasets:[{data:Object.values(relTypes), backgroundColor:['#2196F3','#E91E63','#FF9800','#9C27B0','#4CAF50','#F44336','gray']}]},
+      options:{ animation: chartAnimation }
     });
   } else {
     relTypesChart.data.labels = Object.keys(relTypes);
     relTypesChart.data.datasets[0].data = Object.values(relTypes);
-    relTypesChart.update();
+    relTypesChart.update(perfState.lowPower ? 'none' : undefined);
   }
   // chap status bar
   const chapStatus = {};
@@ -616,12 +993,13 @@ function renderDashboard() {
   const chapCtx = document.getElementById('chart-chap-statut').getContext('2d');
   if (!chapStatusChart) {
     chapStatusChart = new Chart(chapCtx, {
-      type:'bar', data:{labels:Object.keys(chapStatus), datasets:[{data:Object.values(chapStatus), backgroundColor:'#4CAF50'}]}
+      type:'bar', data:{labels:Object.keys(chapStatus), datasets:[{data:Object.values(chapStatus), backgroundColor:'#4CAF50'}]},
+      options:{ animation: chartAnimation }
     });
   } else {
     chapStatusChart.data.labels = Object.keys(chapStatus);
     chapStatusChart.data.datasets[0].data = Object.values(chapStatus);
-    chapStatusChart.update();
+    chapStatusChart.update(perfState.lowPower ? 'none' : undefined);
   }
   // pers by role
   const roleCount = {};
@@ -629,12 +1007,13 @@ function renderDashboard() {
   const roleCtx = document.getElementById('chart-pers-roles').getContext('2d');
   if (!roleChart) {
     roleChart = new Chart(roleCtx, {
-      type:'bar', data:{labels:Object.keys(roleCount), datasets:[{data:Object.values(roleCount), backgroundColor:'#2196F3'}]}
+      type:'bar', data:{labels:Object.keys(roleCount), datasets:[{data:Object.values(roleCount), backgroundColor:'#2196F3'}]},
+      options:{ animation: chartAnimation }
     });
   } else {
     roleChart.data.labels = Object.keys(roleCount);
     roleChart.data.datasets[0].data = Object.values(roleCount);
-    roleChart.update();
+    roleChart.update(perfState.lowPower ? 'none' : undefined);
   }
 
   // network graph
@@ -653,9 +1032,18 @@ function renderDashboardNetwork() {
   const container = document.getElementById('chart-network');
   if (!container) return;
   if (!window.vis) return;
+  if (dashboardNetwork) {
+    dashboardNetwork.destroy();
+    dashboardNetwork = null;
+  }
   const data = { nodes:new vis.DataSet(nodes), edges:new vis.DataSet(edges) };
-  const options = { physics:{enabled:false}, nodes:{font:{size:10}}, edges:{arrows:{to:{enabled:false}}} };
-  new vis.Network(container, data, options);
+  const options = {
+    physics:{enabled:false},
+    nodes:{font:{size:10}},
+    edges:{arrows:{to:{enabled:false}}, smooth:false},
+    interaction:{hover: !perfState.lowPower, zoomView: true}
+  };
+  dashboardNetwork = new vis.Network(container, data, options);
 }
 
 function renderDashboardMetrics(chars, locs, rels) {
@@ -677,7 +1065,7 @@ function renderDashboardMetrics(chars, locs, rels) {
   });
   let topLieu='—'; let topLieuCount=0;
   Object.entries(lieuCounts).forEach(([id,c])=>{ if(c>topLieuCount){topLieuCount=c; topLieu=id;} });
-  const topLieuName = topLieu==='—'? '—' : getProjectData(state.currentProjectId,'lieux').find(l=>l.id===topLieu)?.nom || topLieu;
+  const topLieuName = topLieu==='—'? '—' : getLocationsForProject(state.currentProjectId,true).find(l=>l.id===topLieu)?.nom || topLieu;
 
   // mois le plus dense
   const monthCounts = {};
@@ -764,7 +1152,7 @@ const CHAR_BADGES = {
 
 function renderCharacters() {
   const id   = state.currentProjectId;
-  const list = getProjectData(id, 'personnages');
+  const list = getCharactersForProject(id, true);
   const grid = document.getElementById('personnages-grid');
   const empty = document.getElementById('no-personnages');
 
@@ -790,12 +1178,13 @@ function renderCharacters() {
         <div class="item-card-header">
           <div class="item-card-title">${esc(name)}</div>
           <div class="item-card-actions">
-            <button class="btn-icon" onclick="openCharacterModal('${c.id}')" title="Modifier">✏️</button>
+            <button class="btn-icon" onclick="openCharacterModal('${c.id}','${c._source || 'project'}')" title="Modifier">✏️</button>
             <button class="btn-icon" onclick="openVersionHistory('personnage','${c.id}',null)" title="Historique des versions">🕒</button>
-            <button class="btn-icon" onclick="deleteCharacterConfirm('${c.id}')" title="Supprimer">🗑️</button>
+            <button class="btn-icon" onclick="deleteCharacterConfirm('${c.id}','${c._source || 'project'}')" title="Supprimer">🗑️</button>
           </div>
         </div>
         <span class="badge ${badge}">${esc(c.role)}</span>
+        ${c._source === 'universe' ? `<div class="item-card-meta">🌐 Partagé (univers)</div>` : ''}
         ${c.age ? `<div class="item-card-meta">Âge : ${esc(String(c.age))} ans</div>` : ''}
         ${c.notes ? `<div class="item-card-notes">${esc(c.notes)}</div>` : ''}
         ${assoc ? `<div class="item-card-meta"><small>Playlists : ${assoc}</small></div>` : ''}
@@ -813,9 +1202,11 @@ function initCharacterBackstoryQuill() {
   });
 }
 
-function openCharacterModal(charId = null) {
+function openCharacterModal(charId = null, source = 'project', options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('character', charId, source);
   initCharacterBackstoryQuill();
   state.editingId = charId;
+  state.editingSource = source || 'project';
   document.getElementById('modal-character-title').textContent =
     charId ? 'Modifier le personnage' : 'Nouveau personnage';
   // Reset basic + new fields
@@ -825,6 +1216,14 @@ function openCharacterModal(charId = null) {
   });
   document.getElementById('char-age').value  = '';
   document.getElementById('char-role').value = 'Protagoniste';
+  const sharedWrap = document.getElementById('char-shared-wrap');
+  const sharedChk = document.getElementById('char-shared');
+  const hasUniverse = !!state.currentUniverseId;
+  if (sharedWrap) sharedWrap.classList.toggle('hidden', !hasUniverse);
+  if (sharedChk) {
+    sharedChk.checked = false;
+    sharedChk.disabled = false;
+  }
   // clear quill editor if exists
   if (window.charBackstoryQuill) {
     window.charBackstoryQuill.setContents([]);
@@ -834,8 +1233,17 @@ function openCharacterModal(charId = null) {
   const cpr = document.getElementById('char-photo-remove'); if (cpr) cpr.style.display = 'none';
   const cpi = document.getElementById('char-photo'); if (cpi) { cpi.value = ''; delete cpi.dataset.dataurl; }
 
+  // Reset tabs to Identité
+  switchEntityTab('char-tabs', 'char-tab-identite');
+  // Reset gallery
+  _charGalleryPhotos = [];
+  renderCharGallery();
+
   if (charId) {
-    const c = getProjectData(state.currentProjectId, 'personnages').find(x => x.id === charId);
+    const pool = source === 'universe'
+      ? getUniverseData(state.currentUniverseId, 'personnages')
+      : getProjectData(state.currentProjectId, 'personnages');
+    const c = pool.find(x => x.id === charId);
     if (c) {
       document.getElementById('char-prenom').value = c.prenom || '';
       document.getElementById('char-nom').value    = c.nom    || '';
@@ -864,9 +1272,18 @@ function openCharacterModal(charId = null) {
         container.innerHTML = `<div class="item-card-media"><img src="${c.photo}" alt="photo"></div>`;
         document.getElementById('char-photo-remove').style.display = 'inline-block';
       }
+      // Load gallery
+      _charGalleryPhotos = Array.isArray(c.gallery) ? [...c.gallery] : [];
+      renderCharGallery();
+      // Load relations
+      renderCharRelations(charId, source);
+    }
+    if (sharedChk) {
+      sharedChk.checked = source === 'universe';
+      sharedChk.disabled = true;
     }
   }
-  openModal('modal-character');
+  openEntityPage('modal-character');
   setTimeout(() => document.getElementById('char-prenom').focus(), 80);
 }
 
@@ -930,11 +1347,18 @@ async function saveCharacter() {
     desir: document.getElementById('char-desir') ? document.getElementById('char-desir').value.trim() : '',
     arc: document.getElementById('char-arc') ? document.getElementById('char-arc').value.trim() : '',
     backstory: backstoryPlain,
-    backstoryHtml: backstoryHtml
+    backstoryHtml: backstoryHtml,
+    gallery: _charGalleryPhotos.slice()
   };
 
   const id   = state.currentProjectId;
-  let   list = getProjectData(id, 'personnages');
+  const isSharedTarget = state.editingId
+    ? state.editingSource === 'universe'
+    : !!(document.getElementById('char-shared')?.checked && state.currentUniverseId);
+  const targetUniverseId = state.currentUniverseId;
+  let list = isSharedTarget
+    ? getUniverseData(targetUniverseId, 'personnages')
+    : getProjectData(id, 'personnages');
   // clear hidden textarea value after saving too
   if (window.charBackstoryQuill) {
     document.getElementById('char-backstory').value = backstoryPlain;
@@ -952,29 +1376,47 @@ async function saveCharacter() {
     list.push({ id: uid(), ...data });
   }
 
-  if (state.editingId && typeof snapshotVersion === 'function') {
+  if (state.editingId && typeof snapshotVersion === 'function' && !isSharedTarget) {
     const prev = list.find(p => p.id === state.editingId);
     if (prev) snapshotVersion('personnage', state.editingId, prev);
   }
-  saveProjectData(id, 'personnages', list);
+  if (isSharedTarget) {
+    saveUniverseData(targetUniverseId, 'personnages', list);
+    const universes = getUniverses();
+    const idx = universes.findIndex(u => u.id === targetUniverseId);
+    if (idx !== -1) {
+      universes[idx].updatedAt = new Date().toISOString();
+      saveUniverses(universes);
+    }
+  } else {
+    saveProjectData(id, 'personnages', list);
+  }
   touchProject(id);
   closeModal('modal-character');
   renderCharacters();
-  showToast(state.editingId ? 'Personnage modifié' : 'Personnage créé', 'success');
+  showToast(state.editingId ? 'Personnage modifié' : (isSharedTarget ? 'Personnage partagé créé' : 'Personnage créé'), 'success');
   state.editingId = null;
+  state.editingSource = 'project';
 }
 
-function deleteCharacterConfirm(charId) {
-  const c = getProjectData(state.currentProjectId, 'personnages').find(x => x.id === charId);
+function deleteCharacterConfirm(charId, source = 'project') {
+  const pool = source === 'universe'
+    ? getUniverseData(state.currentUniverseId, 'personnages')
+    : getProjectData(state.currentProjectId, 'personnages');
+  const c = pool.find(x => x.id === charId);
   if (!c) return;
   const name = [c.prenom, c.nom].filter(Boolean).join(' ');
   showConfirm(`Supprimer "${name}" ?`, 'Cette action est irréversible.', () => {
-    let list = getProjectData(state.currentProjectId, 'personnages').filter(x => x.id !== charId);
-    saveProjectData(state.currentProjectId, 'personnages', list);
+    let list = pool.filter(x => x.id !== charId);
+    if (source === 'universe') saveUniverseData(state.currentUniverseId, 'personnages', list);
+    else saveProjectData(state.currentProjectId, 'personnages', list);
     // also remove any relations involving this character
-    let rels = getProjectData(state.currentProjectId, 'relations') || [];
+    let rels = source === 'universe'
+      ? (getUniverseData(state.currentUniverseId, 'relations') || [])
+      : (getProjectData(state.currentProjectId, 'relations') || []);
     rels = rels.filter(r => r.personA !== charId && r.personB !== charId);
-    saveProjectData(state.currentProjectId, 'relations', rels);
+    if (source === 'universe') saveUniverseData(state.currentUniverseId, 'relations', rels);
+    else saveProjectData(state.currentProjectId, 'relations', rels);
     touchProject(state.currentProjectId);
     closeModal('modal-confirm');
     renderCharacters();
@@ -1061,7 +1503,7 @@ const LOC_BADGES = {
 
 function renderLocations() {
   const id   = state.currentProjectId;
-  const list = getProjectData(id, 'lieux');
+  const list = getLocationsForProject(id, true);
   const grid = document.getElementById('lieux-grid');
   const empty = document.getElementById('no-lieux');
 
@@ -1086,11 +1528,12 @@ function renderLocations() {
         <div class="item-card-header">
           <div class="item-card-title">${esc(l.nom)}</div>
           <div class="item-card-actions">
-            <button class="btn-icon" onclick="openLocationModal('${l.id}')" title="Modifier">✏️</button>
-            <button class="btn-icon" onclick="deleteLocationConfirm('${l.id}')" title="Supprimer">🗑️</button>
+            <button class="btn-icon" onclick="openLocationModal('${l.id}','${l._source || 'project'}')" title="Modifier">✏️</button>
+            <button class="btn-icon" onclick="deleteLocationConfirm('${l.id}','${l._source || 'project'}')" title="Supprimer">🗑️</button>
           </div>
         </div>
         <span class="badge ${badge}">${esc(l.type)}</span>
+        ${l._source === 'universe' ? `<div class="item-card-meta">🌐 Partagé (univers)</div>` : ''}
         ${l.ville ? `<div class="item-card-meta">📍 ${esc(l.ville)}</div>` : ''}
         ${l.notes ? `<div class="item-card-notes">${esc(l.notes)}</div>` : ''}
         ${assoc ? `<div class="item-card-meta"><small>Playlists : ${assoc}</small></div>` : ''}
@@ -1098,8 +1541,10 @@ function renderLocations() {
   }).join('');
 }
 
-function openLocationModal(locId = null) {
+function openLocationModal(locId = null, source = 'project', options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('location', locId, source);
   state.editingId = locId;
+  state.editingSource = source || 'project';
   document.getElementById('modal-location-title').textContent =
     locId ? 'Modifier le lieu' : 'Nouveau lieu';
   // reset fields including new ones
@@ -1107,13 +1552,30 @@ function openLocationModal(locId = null) {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('loc-type').value = 'Résidence';
+  const sharedWrap = document.getElementById('loc-shared-wrap');
+  const sharedChk = document.getElementById('loc-shared');
+  const hasUniverse = !!state.currentUniverseId;
+  if (sharedWrap) sharedWrap.classList.toggle('hidden', !hasUniverse);
+  if (sharedChk) {
+    sharedChk.checked = false;
+    sharedChk.disabled = false;
+  }
   // clear preview
   const lp = document.getElementById('loc-photo-preview'); if (lp) lp.innerHTML = '';
   const lpr = document.getElementById('loc-photo-remove'); if (lpr) lpr.style.display = 'none';
   const lpi = document.getElementById('loc-photo'); if (lpi) { lpi.value = ''; delete lpi.dataset.dataurl; }
 
+  // Reset tabs to Identité
+  switchEntityTab('loc-tabs', 'loc-tab-identite');
+  // Reset gallery
+  _locGalleryPhotos = [];
+  renderLocGallery();
+
   if (locId) {
-    const l = getProjectData(state.currentProjectId, 'lieux').find(x => x.id === locId);
+    const pool = source === 'universe'
+      ? getUniverseData(state.currentUniverseId, 'lieux')
+      : getProjectData(state.currentProjectId, 'lieux');
+    const l = pool.find(x => x.id === locId);
     if (l) {
       document.getElementById('loc-nom').value   = l.nom   || '';
       document.getElementById('loc-type').value  = l.type  || 'Résidence';
@@ -1132,9 +1594,16 @@ function openLocationModal(locId = null) {
         container.innerHTML = `<div class="item-card-media"><img src="${l.photo}" alt="photo"></div>`;
         document.getElementById('loc-photo-remove').style.display = 'inline-block';
       }
+      // Load gallery
+      _locGalleryPhotos = Array.isArray(l.gallery) ? [...l.gallery] : [];
+      renderLocGallery();
+    }
+    if (sharedChk) {
+      sharedChk.checked = source === 'universe';
+      sharedChk.disabled = true;
     }
   }
-  openModal('modal-location');
+  openEntityPage('modal-location');
   setTimeout(() => document.getElementById('loc-nom').focus(), 80);
 }
 
@@ -1170,11 +1639,18 @@ async function saveLocation() {
     temperature: document.getElementById('loc-temperature') ? document.getElementById('loc-temperature').value.trim() : '',
     textures: document.getElementById('loc-textures') ? document.getElementById('loc-textures').value.trim() : '',
     importance: document.getElementById('loc-importance') ? document.getElementById('loc-importance').value.trim() : '',
-    scenes: document.getElementById('loc-scenes') ? document.getElementById('loc-scenes').value.trim() : ''
+    scenes: document.getElementById('loc-scenes') ? document.getElementById('loc-scenes').value.trim() : '',
+    gallery: _locGalleryPhotos.slice()
   };
 
   const id   = state.currentProjectId;
-  let   list = getProjectData(id, 'lieux');
+  const isSharedTarget = state.editingId
+    ? state.editingSource === 'universe'
+    : !!(document.getElementById('loc-shared')?.checked && state.currentUniverseId);
+  const targetUniverseId = state.currentUniverseId;
+  let list = isSharedTarget
+    ? getUniverseData(targetUniverseId, 'lieux')
+    : getProjectData(id, 'lieux');
 
   if (state.editingId) {
     const idx = list.findIndex(l => l.id === state.editingId);
@@ -1186,20 +1662,35 @@ async function saveLocation() {
     list.push({ id: uid(), ...data });
   }
 
-  saveProjectData(id, 'lieux', list);
+  if (isSharedTarget) {
+    saveUniverseData(targetUniverseId, 'lieux', list);
+    const universes = getUniverses();
+    const idx = universes.findIndex(u => u.id === targetUniverseId);
+    if (idx !== -1) {
+      universes[idx].updatedAt = new Date().toISOString();
+      saveUniverses(universes);
+    }
+  } else {
+    saveProjectData(id, 'lieux', list);
+  }
   touchProject(id);
   closeModal('modal-location');
   renderLocations();
-  showToast(state.editingId ? 'Lieu modifié' : 'Lieu créé', 'success');
+  showToast(state.editingId ? 'Lieu modifié' : (isSharedTarget ? 'Lieu partagé créé' : 'Lieu créé'), 'success');
   state.editingId = null;
+  state.editingSource = 'project';
 }
 
-function deleteLocationConfirm(locId) {
-  const l = getProjectData(state.currentProjectId, 'lieux').find(x => x.id === locId);
+function deleteLocationConfirm(locId, source = 'project') {
+  const pool = source === 'universe'
+    ? getUniverseData(state.currentUniverseId, 'lieux')
+    : getProjectData(state.currentProjectId, 'lieux');
+  const l = pool.find(x => x.id === locId);
   if (!l) return;
   showConfirm(`Supprimer "${l.nom}" ?`, 'Cette action est irréversible.', () => {
-    let list = getProjectData(state.currentProjectId, 'lieux').filter(x => x.id !== locId);
-    saveProjectData(state.currentProjectId, 'lieux', list);
+    let list = pool.filter(x => x.id !== locId);
+    if (source === 'universe') saveUniverseData(state.currentUniverseId, 'lieux', list);
+    else saveProjectData(state.currentProjectId, 'lieux', list);
     touchProject(state.currentProjectId);
     closeModal('modal-confirm');
     renderLocations();
@@ -1210,13 +1701,20 @@ function deleteLocationConfirm(locId) {
 // ============================================================
 // RELATIONS
 // ============================================================
+let relationsNetwork = null;
+
 function renderRelations() {
   const id = state.currentProjectId;
-  let list = getProjectData(id, 'relations') || [];
+  let list = getRelationsForProject(id, true) || [];
   const filter = document.getElementById('relations-filter')?.value;
   if (filter) {
     list = list.filter(r => r.type === filter);
   }
+
+  window._relationsById = new Map(
+    list.map(r => [relationCacheKey(r.id, r._source || 'project'), r])
+  );
+
   const graphEl = document.getElementById('relations-graph');
   const listEl  = document.getElementById('relations-list');
   const noEl    = document.getElementById('no-relations');
@@ -1242,12 +1740,21 @@ function renderRelations() {
 }
 
 function renderRelationsList(list) {
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = getCharactersForProject(state.currentProjectId, true);
   const el = document.getElementById('relations-list');
   if (!el) return;
-  el.innerHTML = list.map(r => {
-    const a = chars.find(c => c.id === r.personA);
-    const b = chars.find(c => c.id === r.personB);
+  const charById = new Map(chars.map(c => [c.id, c]));
+
+  window._relationsListCache = Array.isArray(list) ? list : [];
+  window._relationsListOffset = 0;
+  window._relationsCharById = charById;
+  el.innerHTML = '';
+  appendRelationsListChunk();
+}
+
+function _buildRelationRow(r, charById) {
+    const a = charById.get(r.personA);
+    const b = charById.get(r.personB);
     const nameA = a ? [a.prenom, a.nom].filter(Boolean).join(' ') : '[?]';
     const nameB = b ? [b.prenom, b.nom].filter(Boolean).join(' ') : '[?]';
     return `
@@ -1255,30 +1762,58 @@ function renderRelationsList(list) {
         <div>
           <strong>${esc(nameA)} ↔ ${esc(nameB)}</strong>
           ${r.type ? `<span class="badge" style="margin-left:6px">${esc(r.type)}</span>` : ''}
+          ${r._source === 'universe' ? `<span class="badge" style="margin-left:6px">🌐 Univers</span>` : ''}
         </div>
         <div class="item-card-actions">
-          <button class="btn-icon" onclick="openRelationModal('${r.id}')" title="Modifier">✏️</button>
-          <button class="btn-icon" onclick="deleteRelationConfirm('${r.id}')" title="Supprimer">🗑️</button>
+          <button class="btn-icon" onclick="openRelationModal('${r.id}','${r._source || 'project'}')" title="Modifier">✏️</button>
+          <button class="btn-icon" onclick="deleteRelationConfirm('${r.id}','${r._source || 'project'}')" title="Supprimer">🗑️</button>
         </div>
       </div>`;
-  }).join('');
+}
+
+function appendRelationsListChunk() {
+  const el = document.getElementById('relations-list');
+  if (!el) return;
+  const cache = window._relationsListCache || [];
+  const charById = window._relationsCharById || new Map();
+  const start = window._relationsListOffset || 0;
+  const chunk = 40;
+  if (start >= cache.length) return;
+
+  const slice = cache.slice(start, start + chunk);
+  const html = slice.map(r => _buildRelationRow(r, charById)).join('');
+  el.insertAdjacentHTML('beforeend', html);
+  window._relationsListOffset = start + chunk;
+
+  if (window._relationsListOffset < cache.length) {
+    setTimeout(appendRelationsListChunk, 0);
+  }
 }
 
 function renderRelationsGraph(list) {
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = getCharactersForProject(state.currentProjectId, true);
   const nodes = chars.map(c => ({ id: c.id, label: [c.prenom, c.nom].filter(Boolean).join(' ') }));
   const edges = list.map(r => ({ from: r.personA, to: r.personB, label: r.type || '', arrows: '', color: { color: '#666' } }));
   const container = document.getElementById('relations-graph');
   if (!container) return;
   if (!window.vis) { container.innerHTML = '<p style="padding:16px;color:var(--gray-400)">Chargement du graphe…</p>'; return; }
+  if (relationsNetwork) {
+    relationsNetwork.destroy();
+    relationsNetwork = null;
+  }
   container.innerHTML = '';
   const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
-  const options = { physics: { enabled: true }, nodes: { shape: 'dot', size: 20 } };
-  new vis.Network(container, data, options);
+  const options = {
+    physics: { enabled: false },
+    nodes: { shape: 'dot', size: 18 },
+    edges: { smooth: false },
+    interaction: { hover: false }
+  };
+  relationsNetwork = new vis.Network(container, data, options);
 }
 
 function renderRelationsMatrix(list) {
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = getCharactersForProject(state.currentProjectId, true);
   const el = document.getElementById('relations-list');
   if (!el || chars.length === 0) { if (el) el.innerHTML = '<em>Aucun personnage.</em>'; return; }
 
@@ -1293,6 +1828,7 @@ function renderRelationsMatrix(list) {
     'Amour/Romance':    '#ec4899',
     'Amitié':           '#22c55e',
     'Famille':          '#f59e0b',
+    'Frère/Sœur':       '#f97316',
     'Conflit/Ennemis':  '#ef4444',
     'Professionnel':    '#6366f1',
     'Mentor/Élève':     '#06b6d4',
@@ -1306,21 +1842,6 @@ function renderRelationsMatrix(list) {
     `<th title="${esc(getName(c))}" style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:4px 6px;writing-mode:vertical-rl;transform:rotate(180deg);height:80px">${esc(getName(c))}</th>`
   ).join('');
 
-  const rows = chars.map(cA => {
-    const cells = chars.map(cB => {
-      if (cA.id === cB.id) return `<td style="background:var(--gray-100);"></td>`;
-      const r = relMap[cA.id + '|' + cB.id];
-      if (!r) return `<td style=""></td>`;
-      const color = TYPE_COLORS[r.type] || TYPE_COLORS['Autre'];
-      return `<td title="${esc(r.type)}" style="background:${color};opacity:0.75;cursor:pointer"
-                  onclick="openRelationModal('${r.id}')"></td>`;
-    }).join('');
-    return `<tr>
-      <th style="text-align:right;font-size:11px;white-space:nowrap;padding:4px 6px;font-weight:500">${esc(getName(cA))}</th>
-      ${cells}
-    </tr>`;
-  }).join('');
-
   // Legend
   const legend = Object.entries(TYPE_COLORS).map(([type, color]) =>
     `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:12px">
@@ -1332,30 +1853,101 @@ function renderRelationsMatrix(list) {
     <div style="overflow:auto;margin-bottom:16px">
       <table style="border-collapse:collapse;table-layout:fixed">
         <thead><tr><th></th>${headerCells}</tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody id="relations-matrix-body"></tbody>
       </table>
     </div>
+    <div id="relations-matrix-status" style="font-size:12px;color:var(--gray-500);margin-top:-8px;margin-bottom:8px">Chargement de la matrice…</div>
     <div style="margin-top:8px;flex-wrap:wrap;display:flex">${legend}</div>`;
+
+  window._relationsMatrixState = {
+    chars,
+    relMap,
+    typeColors: TYPE_COLORS,
+    offset: 0,
+    chunkSize: 12,
+    token: Date.now() + Math.random(),
+  };
+  appendRelationsMatrixChunk(window._relationsMatrixState.token);
 }
 
-function openRelationModal(relId = null) {
+function appendRelationsMatrixChunk(token) {
+  const stateMx = window._relationsMatrixState;
+  if (!stateMx || stateMx.token !== token) return;
+  const tbody = document.getElementById('relations-matrix-body');
+  if (!tbody) return;
+
+  const { chars, relMap, typeColors, chunkSize } = stateMx;
+  const start = stateMx.offset;
+  if (start >= chars.length) {
+    const statusEl = document.getElementById('relations-matrix-status');
+    if (statusEl) statusEl.textContent = `Matrice prête (${chars.length} personnages)`;
+    return;
+  }
+
+  const slice = chars.slice(start, start + chunkSize);
+  const html = slice.map(cA => {
+    const nameA = (cA.prenom || '') + (cA.nom ? ' ' + cA.nom : '');
+    const cells = chars.map(cB => {
+      if (cA.id === cB.id) return `<td style="background:var(--gray-100);"></td>`;
+      const r = relMap[cA.id + '|' + cB.id];
+      if (!r) return `<td style=""></td>`;
+      const color = typeColors[r.type] || typeColors['Autre'];
+      return `<td title="${esc(r.type)}" style="background:${color};opacity:0.75;cursor:pointer"
+                  onclick="openRelationModal('${r.id}','${r._source || 'project'}')"></td>`;
+    }).join('');
+    return `<tr>
+      <th style="text-align:right;font-size:11px;white-space:nowrap;padding:4px 6px;font-weight:500">${esc(nameA)}</th>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  tbody.insertAdjacentHTML('beforeend', html);
+  stateMx.offset = start + chunkSize;
+
+  const statusEl = document.getElementById('relations-matrix-status');
+  if (statusEl) {
+    statusEl.textContent = `Chargement… ${Math.min(stateMx.offset, chars.length)} / ${chars.length}`;
+  }
+
+  if (stateMx.offset < chars.length) {
+    setTimeout(() => appendRelationsMatrixChunk(token), 0);
+  } else if (statusEl) {
+    statusEl.textContent = `Matrice prête (${chars.length} personnages)`;
+  }
+}
+
+function openRelationModal(relId = null, source = 'project', options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('relation', relId, source);
   state.editingId = relId;
+  state.editingSource = source || 'project';
   document.getElementById('modal-relation-title').textContent = relId ? 'Modifier la relation' : 'Nouvelle relation';
   ['rel-description','rel-evolution','rel-notes'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('rel-intensite').value = 3;
   document.getElementById('rel-statut').value = 'Actuelle';
+  const sharedWrap = document.getElementById('rel-shared-wrap');
+  const sharedChk = document.getElementById('rel-shared');
+  const hasUniverse = !!state.currentUniverseId;
+  if (sharedWrap) sharedWrap.classList.toggle('hidden', !hasUniverse);
+  if (sharedChk) {
+    sharedChk.checked = false;
+    sharedChk.disabled = false;
+  }
   // populate character selects
-  const chars = getProjectData(state.currentProjectId, 'personnages');
-  const options = chars.map(c => `<option value="${c.id}">${esc([c.prenom, c.nom].filter(Boolean).join(' '))}</option>`).join('');
+  const chars = getCharactersForProject(state.currentProjectId, true);
+  const charOptions = chars.map(c => `<option value="${c.id}">${esc([c.prenom, c.nom].filter(Boolean).join(' '))}</option>`).join('');
   const selA = document.getElementById('rel-personA');
   const selB = document.getElementById('rel-personB');
-  if (selA) selA.innerHTML = options;
-  if (selB) selB.innerHTML = options;
+  if (selA) selA.innerHTML = charOptions;
+  if (selB) selB.innerHTML = charOptions;
 
   if (relId) {
-    const r = getProjectData(state.currentProjectId, 'relations').find(x => x.id === relId);
+    const cached = window._relationsById?.get(relationCacheKey(relId, source));
+    const pool = source === 'universe'
+      ? getUniverseData(state.currentUniverseId, 'relations')
+      : getProjectData(state.currentProjectId, 'relations');
+    const r = cached || pool.find(x => x.id === relId);
     if (r) {
       if (selA) selA.value = r.personA;
       if (selB) selB.value = r.personB;
@@ -1366,47 +1958,91 @@ function openRelationModal(relId = null) {
       document.getElementById('rel-statut').value = r.statut || 'Actuelle';
       document.getElementById('rel-notes').value = r.notes || '';
     }
+    if (sharedChk) {
+      sharedChk.checked = source === 'universe';
+      sharedChk.disabled = true;
+    }
   }
-  openModal('modal-relation');
+  openEntityPage('modal-relation');
 }
 
 function saveRelation() {
-  const personA = document.getElementById('rel-personA').value;
-  const personB = document.getElementById('rel-personB').value;
+  const personAInput = document.getElementById('rel-personA').value;
+  const personBInput = document.getElementById('rel-personB').value;
+  const relationType = document.getElementById('rel-type').value;
+  const relationDesc = document.getElementById('rel-description').value.trim();
+  const normalized = normalizeRelationPair(personAInput, personBInput, relationType, relationDesc);
+  const personA = normalized.personA;
+  const personB = normalized.personB;
   if (!personA || !personB) { showToast('Les deux personnages sont requis', 'error'); return; }
   if (personA === personB) { showToast('Une relation doit impliquer deux personnages distincts', 'error'); return; }
   const data = {
     personA,
     personB,
-    type: document.getElementById('rel-type').value,
+    type: relationType,
     intensite: parseInt(document.getElementById('rel-intensite').value) || 1,
-    description: document.getElementById('rel-description').value.trim(),
+    description: relationDesc,
     evolution: document.getElementById('rel-evolution').value.trim(),
     statut: document.getElementById('rel-statut').value,
     notes: document.getElementById('rel-notes').value.trim()
   };
   const id = state.currentProjectId;
-  let list = getProjectData(id, 'relations');
+  const isSharedTarget = state.editingId
+    ? state.editingSource === 'universe'
+    : !!(document.getElementById('rel-shared')?.checked && state.currentUniverseId);
+  const targetUniverseId = state.currentUniverseId;
+  let list = isSharedTarget
+    ? getUniverseData(targetUniverseId, 'relations')
+    : getProjectData(id, 'relations');
+
+  const duplicateIdx = list.findIndex(r =>
+    relationPairKey(r.personA, r.personB, r.type) === relationPairKey(data.personA, data.personB, data.type) &&
+    (!state.editingId || r.id !== state.editingId)
+  );
   if (state.editingId) {
     const idx = list.findIndex(r => r.id === state.editingId);
     if (idx !== -1) list[idx] = { ...list[idx], ...data };
+    if (duplicateIdx !== -1) {
+      list[duplicateIdx] = { ...list[duplicateIdx], ...data, updatedAt: new Date().toISOString() };
+      list = list.filter(r => r.id !== state.editingId);
+    }
   } else {
-    list.push({ id: uid(), ...data });
+    if (duplicateIdx !== -1) {
+      list[duplicateIdx] = { ...list[duplicateIdx], ...data, updatedAt: new Date().toISOString() };
+    } else {
+      list.push({ id: uid(), ...data });
+    }
   }
-  saveProjectData(id, 'relations', list);
+  if (isSharedTarget) {
+    saveUniverseData(targetUniverseId, 'relations', list);
+    const universes = getUniverses();
+    const idx = universes.findIndex(u => u.id === targetUniverseId);
+    if (idx !== -1) {
+      universes[idx].updatedAt = new Date().toISOString();
+      saveUniverses(universes);
+    }
+  } else {
+    saveProjectData(id, 'relations', list);
+  }
   touchProject(id);
   closeModal('modal-relation');
   renderRelations();
   showToast(state.editingId ? 'Relation modifiée' : 'Relation créée', 'success');
   state.editingId = null;
+  state.editingSource = 'project';
 }
 
-function deleteRelationConfirm(relId) {
-  const r = getProjectData(state.currentProjectId, 'relations').find(x => x.id === relId);
+function deleteRelationConfirm(relId, source = 'project') {
+  const cached = window._relationsById?.get(relationCacheKey(relId, source));
+  const pool = source === 'universe'
+    ? getUniverseData(state.currentUniverseId, 'relations')
+    : getProjectData(state.currentProjectId, 'relations');
+  const r = cached || pool.find(x => x.id === relId);
   if (!r) return;
   showConfirm('Supprimer cette relation ?', 'Cette action est irréversible', () => {
-    let list = getProjectData(state.currentProjectId, 'relations').filter(x => x.id !== relId);
-    saveProjectData(state.currentProjectId, 'relations', list);
+    let list = pool.filter(x => x.id !== relId);
+    if (source === 'universe') saveUniverseData(state.currentUniverseId, 'relations', list);
+    else saveProjectData(state.currentProjectId, 'relations', list);
     touchProject(state.currentProjectId);
     renderRelations();
     closeModal('modal-confirm');
@@ -1447,7 +2083,7 @@ function renderChapters() {
       <div class="chapter-num">${c.numero}</div>
       <div class="chapter-body">
         <div class="chapter-title">${esc(c.titre)}</div>
-        ${c.pov ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:3px">POV : ${esc((getProjectData(state.currentProjectId,'personnages').find(p=>p.id===c.pov)||{}).prenom || '')}</div>` : ''}
+        ${c.pov ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:3px">POV : ${esc((getCharactersForProject(state.currentProjectId,true).find(p=>p.id===c.pov)||{}).prenom || '')}</div>` : ''}
         ${(statusBadge || wcBadge || estimateBadge) ? `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">${statusBadge}${wcBadge}${estimateBadge}</div>` : ''}
         ${c.resume ? `<div class="chapter-notes" style="margin-top:3px"><em>${esc(c.resume)}</em></div>` : ''}
         ${c.notes ? `<div class="chapter-notes" style="margin-top:3px">${esc(c.notes)}</div>` : ''}
@@ -1479,7 +2115,7 @@ function openChapterModal(chapId = null) {
   document.getElementById('chap-statut').value = 'Brouillon';
 
   // build POV options from characters
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = getCharactersForProject(state.currentProjectId, true);
   const povSel = document.getElementById('chap-pov');
   povSel.innerHTML = '<option value="">— Aucun —</option>' +
     chars.map(c => { const name=[c.prenom,c.nom].filter(Boolean).join(' '); return `<option value="${c.id}">${esc(name)}</option>`; }).join('');
@@ -1624,6 +2260,114 @@ function saveProjectSettings() {
 
   document.getElementById('project-name-header').textContent = name;
   showToast('Paramètres enregistrés', 'success');
+}
+
+function computeProjectInconsistencies(projectId) {
+  const items = [];
+  if (!projectId) return items;
+
+  const chars = getCharactersForProject(projectId, true) || [];
+  const localChars = getProjectData(projectId, 'personnages') || [];
+  const charIds = new Set(chars.map(c => c.id));
+  const chapitres = getProjectData(projectId, 'chapitres') || [];
+  const chapIds = new Set(chapitres.map(c => c.id));
+  const scenes = getProjectData(projectId, 'scenes') || [];
+  const notes = getProjectData(projectId, 'notes') || [];
+  const events = getProjectData(projectId, 'events') || [];
+  const relations = getRelationsForProject(projectId, true) || [];
+  const locations = getLocationsForProject(projectId, true) || [];
+  const locationIds = new Set(locations.map(l => l.id));
+
+  // Relations: missing refs and duplicates
+  const relKeys = new Set();
+  relations.forEach(r => {
+    if (!charIds.has(r.personA) || !charIds.has(r.personB)) {
+      items.push({ severity: 'error', text: `Relation invalide: personnage introuvable (${r.type || 'type inconnu'})` });
+    }
+    const key = relationPairKey(r.personA, r.personB, r.type);
+    if (relKeys.has(key)) {
+      items.push({ severity: 'warning', text: `Relation potentiellement dupliquée: ${r.type || 'sans type'}` });
+    } else {
+      relKeys.add(key);
+    }
+  });
+
+  // Chapters/scenes consistency
+  chapitres.forEach(c => {
+    if (c.pov && !charIds.has(c.pov)) {
+      items.push({ severity: 'warning', text: `Chapitre ${c.numero || '?'}: POV manquant (personnage supprimé)` });
+    }
+  });
+
+  scenes.forEach(s => {
+    if (s.pov && !charIds.has(s.pov)) {
+      items.push({ severity: 'warning', text: `Scène "${s.titre || s.id}": POV manquant` });
+    }
+    if (s.assigneChapitreId && !chapIds.has(s.assigneChapitreId)) {
+      items.push({ severity: 'error', text: `Scène "${s.titre || s.id}": chapitre assigné introuvable` });
+    }
+  });
+
+  // Events: invalid associated links and date parse
+  events.forEach(e => {
+    const d = parseDateForSort(e.date || '');
+    if ((e.date || '').trim() && d === 0) {
+      items.push({ severity: 'warning', text: `Événement "${e.titre || e.id}": date difficile à interpréter` });
+    }
+    (e.associated || []).forEach(a => {
+      if (!a || !a.type || !a.id) {
+        items.push({ severity: 'error', text: `Événement "${e.titre || e.id}": lien associé incomplet` });
+        return;
+      }
+      let ok = false;
+      if (a.type === 'personnages') ok = charIds.has(a.id);
+      else if (a.type === 'lieux') ok = locationIds.has(a.id);
+      else if (a.type === 'chapitres') ok = chapIds.has(a.id);
+      if (!ok) items.push({ severity: 'error', text: `Événement "${e.titre || e.id}": lien cassé (${a.type})` });
+    });
+  });
+
+  // Notes basic checks
+  notes.forEach(n => {
+    if (n.due && isNaN(new Date(n.due).getTime())) {
+      items.push({ severity: 'warning', text: `Note "${n.titre || n.id}": échéance invalide` });
+    }
+  });
+
+  // Low content signal
+  if (localChars.length === 0) {
+    items.push({ severity: 'warning', text: 'Aucun personnage local dans ce livre.' });
+  }
+
+  return items;
+}
+
+function renderConsistencyReport() {
+  const summaryEl = document.getElementById('consistency-summary');
+  const reportEl = document.getElementById('consistency-report');
+  if (!summaryEl || !reportEl || !state.currentProjectId) return;
+
+  const items = computeProjectInconsistencies(state.currentProjectId);
+  const errors = items.filter(i => i.severity === 'error').length;
+  const warnings = items.filter(i => i.severity === 'warning').length;
+  const scoreBase = 100 - (errors * 12 + warnings * 4);
+  const score = Math.max(0, Math.min(100, scoreBase));
+
+  summaryEl.textContent = `Score cohérence: ${score}/100 - ${errors} erreur(s), ${warnings} avertissement(s)`;
+
+  if (items.length === 0) {
+    reportEl.innerHTML = '<div class="consistency-item">Aucune incohérence détectée. Ton projet est propre.</div>';
+    return;
+  }
+
+  reportEl.innerHTML = items.map(i =>
+    `<div class="consistency-item ${i.severity}">${i.severity === 'error' ? '[ERREUR]' : '[AVERTISSEMENT]'} ${esc(i.text)}</div>`
+  ).join('');
+}
+
+function analyzeConsistencyNow() {
+  renderConsistencyReport();
+  showToast('Analyse de cohérence mise à jour', 'success');
 }
 
 // ============================================================
@@ -2191,7 +2935,9 @@ function renderPlaylists() {
 
 function getAssociatedName(a) {
   if (!a || !a.type || !a.id) return '';
-  const list = getProjectData(state.currentProjectId, a.type);
+  const list = a.type === 'personnages'
+    ? getCharactersForProject(state.currentProjectId, true)
+    : (a.type === 'lieux' ? getLocationsForProject(state.currentProjectId, true) : getProjectData(state.currentProjectId, a.type));
   const item = list.find(x=>x.id===a.id);
   if (!item) return '';
   if (a.type === 'personnages') return [item.prenom,item.nom].filter(Boolean).join(' ');
@@ -2200,15 +2946,29 @@ function getAssociatedName(a) {
   return '';
 }
 
-function openPlaylistModal(plId=null) {
+function getAssociatedNameForProject(a, projectId) {
+  if (!a || !a.type || !a.id || !projectId) return '';
+  const list = a.type === 'personnages'
+    ? getCharactersForProject(projectId, true)
+    : (a.type === 'lieux' ? getLocationsForProject(projectId, true) : getProjectData(projectId, a.type));
+  const item = list.find(x => x.id === a.id);
+  if (!item) return '';
+  if (a.type === 'personnages') return [item.prenom, item.nom].filter(Boolean).join(' ');
+  if (a.type === 'lieux') return item.nom;
+  if (a.type === 'chapitres') return item.titre;
+  return '';
+}
+
+function openPlaylistModal(plId=null, options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('playlist', plId, 'project');
   state.editingId = plId;
   document.getElementById('modal-playlist-title').textContent = plId ? 'Modifier la playlist' : 'Nouvelle playlist';
   ['pl-nom','pl-url','pl-tags','pl-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pl-associated').innerHTML = '';
   document.getElementById('pl-image').value = '';
   document.getElementById('pl-image-preview-container').innerHTML = '';
-  const chars = getProjectData(state.currentProjectId,'personnages');
-  const lieux = getProjectData(state.currentProjectId,'lieux');
+  const chars = getCharactersForProject(state.currentProjectId,true);
+  const lieux = getLocationsForProject(state.currentProjectId,true);
   const chaps = getProjectData(state.currentProjectId,'chapitres');
   const sel = document.getElementById('pl-associated');
   if (chars.length) {
@@ -2254,7 +3014,7 @@ function openPlaylistModal(plId=null) {
       reader.readAsDataURL(file);
     }
   };
-  openModal('modal-playlist');
+  openEntityPage('modal-playlist');
 }
 
 function savePlaylist() {
@@ -2316,7 +3076,25 @@ function deletePlaylist(id) {
 // ---------- Timeline/events ----------
 function renderTimeline() {
   const id = state.currentProjectId;
-  let events = getProjectData(id,'events');
+  const universeMode = !!document.getElementById('timeline-scope-universe')?.checked;
+  const projectFilter = document.getElementById('timeline-filter-project')?.value || '';
+  let events = [];
+
+  _refreshTimelineProjectFilter(id, universeMode);
+
+  if (universeMode && state.currentUniverseId) {
+    const projects = getProjects().filter(p => p.universeId === state.currentUniverseId);
+    projects.forEach(p => {
+      const evs = getProjectData(p.id, 'events') || [];
+      evs.forEach(ev => events.push({ ...ev, _projectId: p.id, _projectName: p.name }));
+    });
+    if (projectFilter) {
+      events = events.filter(e => e._projectId === projectFilter);
+    }
+  } else {
+    events = (getProjectData(id,'events') || []).map(e => ({ ...e, _projectId: id, _projectName: getProjects().find(p => p.id === id)?.name || '' }));
+  }
+
   const typeFilter = $('timeline-filter-type').value;
   const persFilter = $('timeline-filter-personnage').value.toLowerCase();
   const zoom = $('timeline-zoom').value;
@@ -2325,11 +3103,14 @@ function renderTimeline() {
   const hasChap = $('filter-has-chapitre').checked;
 
   // apply filters
-  if (typeFilter) events = events.filter(e=>e.type === typeFilter);
+  if (typeFilter) {
+    if (typeFilter === 'Naissance / Mort') events = events.filter(e => e.type === 'Naissance' || e.type === 'Mort');
+    else events = events.filter(e=>e.type === typeFilter);
+  }
   if (persFilter) {
     events = events.filter(e=>{
       return (e.associated||[]).some(a=>{
-        const name = getAssociatedName(a).toLowerCase();
+        const name = getAssociatedNameForProject(a, e._projectId || id).toLowerCase();
         return name.includes(persFilter);
       });
     });
@@ -2356,7 +3137,191 @@ function renderTimeline() {
   window._timelineOffset = 0;
   const container = document.getElementById('timeline-list');
   container.innerHTML = '';
+
+  renderTimelineSmartInsights(events, {
+    currentProjectId: id,
+    universeMode,
+    projectFilter,
+  });
+
   appendTimelineChunk(zoom);
+}
+
+function renderTimelineSmartInsights(events, options = {}) {
+  const panel = document.getElementById('timeline-smart-insights');
+  if (!panel) return;
+
+  const list = Array.isArray(events) ? events : [];
+  if (!list.length) {
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+    window._timelineSmartSuggestions = [];
+    return;
+  }
+
+  const universeMode = !!options.universeMode;
+  const projectFilter = options.projectFilter || '';
+  const currentProjectId = options.currentProjectId || state.currentProjectId;
+  const analysisProjectId = projectFilter || (universeMode ? '' : currentProjectId);
+
+  const parseTs = e => parseDateForSort(e && e.date ? e.date : '');
+  const valid = list.filter(e => parseTs(e) > 0).slice().sort((a, b) => parseTs(a) - parseTs(b));
+  const undatedCount = list.length - valid.length;
+
+  const gaps = [];
+  for (let i = 1; i < valid.length; i++) {
+    const prev = valid[i - 1];
+    const cur = valid[i];
+    const a = parseTs(prev);
+    const b = parseTs(cur);
+    const days = Math.round((b - a) / 86400000);
+    if (days >= 90) {
+      gaps.push({ a: prev, b: cur, aTs: a, bTs: b, days });
+    }
+  }
+  gaps.sort((x, y) => y.days - x.days);
+
+  const suggestions = [];
+
+  // Suggest anchors for chapters that have no linked timeline event.
+  if (analysisProjectId) {
+    const chaps = (getProjectData(analysisProjectId, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+    const relevantEvents = list.filter(e => (e._projectId || currentProjectId) === analysisProjectId);
+    const linkedChapterIds = new Set();
+    relevantEvents.forEach(e => {
+      (e.associated || []).forEach(a => {
+        if (a && a.type === 'chapitres' && a.id) linkedChapterIds.add(a.id);
+      });
+    });
+
+    chaps.filter(c => !linkedChapterIds.has(c.id)).slice(0, 4).forEach(c => {
+      suggestions.push({
+        kind: 'chapter-anchor',
+        projectId: analysisProjectId,
+        title: `Point cle du chapitre ${c.numero || '?'}`,
+        desc: `Ancrer la timeline pour "${c.titre || `Chapitre ${c.numero || '?'}`}".`,
+        eventType: 'Tournant',
+        importance: 3,
+        date: '',
+        associated: [{ type: 'chapitres', id: c.id }],
+        reason: `Chapitre ${c.numero || '?'} sans evenement lie.`,
+      });
+    });
+  }
+
+  // Suggest bridge events for large time gaps.
+  gaps.slice(0, 3).forEach(g => {
+    const midTs = Math.round((g.aTs + g.bTs) / 2);
+    const midDate = new Date(midTs).toISOString().slice(0, 10);
+    const pId = g.b._projectId || g.a._projectId || currentProjectId;
+    suggestions.push({
+      kind: 'gap-bridge',
+      projectId: pId,
+      title: `Pont narratif: ${g.a.titre || 'event A'} -> ${g.b.titre || 'event B'}`,
+      desc: `Combler un intervalle de ${g.days} jours entre deux evenements.`,
+      eventType: 'Decouverte',
+      importance: 2,
+      date: midDate,
+      associated: [],
+      reason: `Trou temporel detecte (${g.days} jours).`,
+    });
+  });
+
+  window._timelineSmartSuggestions = suggestions;
+
+  const overview = [];
+  overview.push(`<strong>Timeline intelligente auto</strong>`);
+  overview.push(`Evenements analyses: ${list.length}${undatedCount ? ` - sans date: ${undatedCount}` : ''}`);
+  overview.push(`Trous temporels >= 90 jours: ${gaps.length}`);
+  if (universeMode && !analysisProjectId) {
+    overview.push('Astuce: choisis un livre dans le filtre pour des suggestions plus precises.');
+  }
+
+  let suggestionsHtml = '';
+  if (!suggestions.length) {
+    suggestionsHtml = '<div class="timeline-smart-empty">Aucune suggestion automatique prioritaire pour le moment.</div>';
+  } else {
+    suggestionsHtml = suggestions.slice(0, 6).map((s, idx) => `
+      <div class="timeline-smart-item">
+        <div class="timeline-smart-item-title">${esc(s.title)}</div>
+        <div class="timeline-smart-item-meta">${esc(s.reason || '')}</div>
+        <div class="timeline-smart-item-meta">${esc(s.desc || '')}</div>
+        <div class="timeline-smart-item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="applyTimelineSmartSuggestion(${idx})">+ Creer cet evenement</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  panel.innerHTML = `
+    <div class="timeline-smart-overview">${overview.join('<br>')}</div>
+    <div class="timeline-smart-list">${suggestionsHtml}</div>
+  `;
+  panel.classList.remove('hidden');
+}
+
+function applyTimelineSmartSuggestion(index) {
+  const suggestions = window._timelineSmartSuggestions || [];
+  const s = suggestions[index];
+  if (!s) return;
+
+  const projectId = s.projectId || state.currentProjectId;
+  const doApply = () => {
+    const list = getProjectData(projectId, 'events') || [];
+
+    // Avoid obvious duplicates for chapter anchors.
+    if (s.kind === 'chapter-anchor' && s.associated && s.associated[0]) {
+      const chapId = s.associated[0].id;
+      const dup = list.some(e => (e.associated || []).some(a => a.type === 'chapitres' && a.id === chapId));
+      if (dup) {
+        showToast('Un evenement est deja lie a ce chapitre', 'error');
+        return;
+      }
+    }
+
+    const ev = {
+      id: uid(),
+      date: s.date || '',
+      titre: s.title || 'Evenement suggere',
+      desc: s.desc || 'Ajout automatique timeline intelligente',
+      type: s.eventType || 'Autre',
+      importance: s.importance || 2,
+      associated: Array.isArray(s.associated) ? s.associated : [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    list.push(ev);
+    saveProjectData(projectId, 'events', list);
+    touchProject(projectId);
+
+    if (projectId === state.currentProjectId) {
+      renderTimeline();
+    }
+    showToast('Evenement suggere ajoute', 'success');
+  };
+
+  if (projectId !== state.currentProjectId) {
+    openProject(projectId, 'timeline', true);
+    setTimeout(doApply, 60);
+  } else {
+    doApply();
+  }
+}
+
+function _refreshTimelineProjectFilter(projectId, universeMode) {
+  const sel = document.getElementById('timeline-filter-project');
+  if (!sel) return;
+  if (!universeMode || !state.currentUniverseId) {
+    sel.classList.add('hidden');
+    sel.innerHTML = '<option value="">Tous les livres</option>';
+    return;
+  }
+  const projects = getProjects().filter(p => p.universeId === state.currentUniverseId);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Tous les livres</option>' +
+    projects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  if (prev && projects.some(p => p.id === prev)) sel.value = prev;
+  sel.classList.remove('hidden');
 }
 
 function appendTimelineChunk(zoom) {
@@ -2380,7 +3345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const zoom = document.getElementById('timeline-zoom').value;
         appendTimelineChunk(zoom);
       }
-    });
+    }, { passive: true });
   }
 });
 
@@ -2457,23 +3422,44 @@ function getEventMonth(ev) {
 function renderEventRow(e) {
   const iconMap = { Rencontre:'💫', Naissance:'🍼', Mort:'🕊️', Tournant:'⚡', Découverte:'🔍', Conflit:'⚔️', Résolution:'✅', Autre:'📍' };
   const icon = iconMap[e.type] || '📍';
-  const assoc = (e.associated||[]).map(getAssociatedName).filter(Boolean).join(', ');
+  const assoc = (e.associated||[]).map(a => getAssociatedNameForProject(a, e._projectId || state.currentProjectId)).filter(Boolean).join(', ');
   const imp = e.importance ? ` <span class="event-importance">${'★'.repeat(e.importance)}</span>` : '';
-  return `<div class="timeline-event" tabindex="0" onclick="openEventModal('${e.id}')" onkeydown="if(event.key==='Enter')openEventModal('${e.id}')">
+  const projectBadge = e._projectName ? `<small style="color:var(--gray-500)">📘 ${esc(e._projectName)}</small>` : '';
+  return `<div class="timeline-event" tabindex="0" onclick="openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')" onkeydown="if(event.key==='Enter')openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">
       <div class="event-icon">${icon}</div>
       <div class="event-body">
         <div><strong>${esc(e.titre)}</strong>${imp} <span class="event-date">${esc(e.date||'')}</span></div>
         <div>${esc(e.desc||'')}</div>
+        ${projectBadge}
         ${assoc? `<div><small>Lié à : ${esc(assoc)}</small></div>` : ''}
       </div>
       <div class="event-actions">
-        <button class="btn-icon" onclick="event.stopPropagation();openEventModal('${e.id}')">✏️</button>
-        <button class="btn-icon" onclick="event.stopPropagation();deleteEventConfirm('${e.id}')">🗑️</button>
+        <button class="btn-icon" onclick="event.stopPropagation();openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">✏️</button>
+        <button class="btn-icon" onclick="event.stopPropagation();deleteTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">🗑️</button>
       </div>
     </div>`;
 }
 
-function openEventModal(evId=null) {
+function openTimelineEvent(projectId, eventId) {
+  if (!projectId || projectId === state.currentProjectId) {
+    openEventModal(eventId);
+    return;
+  }
+  openProject(projectId, 'timeline', true);
+  setTimeout(() => openEventModal(eventId), 30);
+}
+
+function deleteTimelineEvent(projectId, eventId) {
+  if (!projectId || projectId === state.currentProjectId) {
+    deleteEventConfirm(eventId);
+    return;
+  }
+  openProject(projectId, 'timeline', true);
+  setTimeout(() => deleteEventConfirm(eventId), 30);
+}
+
+function openEventModal(evId=null, options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('event', evId, 'project');
   state.editingId = evId;
   document.getElementById('modal-event-title').textContent = evId ? 'Modifier l\'événement' : 'Nouvel événement';
   ['ev-date','ev-titre','ev-desc'].forEach(id=>document.getElementById(id).value='');
@@ -2481,8 +3467,8 @@ function openEventModal(evId=null) {
   document.getElementById('ev-importance').value = 3;
   document.getElementById('ev-importance-value').textContent = '3';
   document.getElementById('ev-associated').innerHTML='';
-  const chars = getProjectData(state.currentProjectId,'personnages');
-  const lieux = getProjectData(state.currentProjectId,'lieux');
+  const chars = getCharactersForProject(state.currentProjectId,true);
+  const lieux = getLocationsForProject(state.currentProjectId,true);
   const chaps = getProjectData(state.currentProjectId,'chapitres');
   const sel = document.getElementById('ev-associated');
   if (chars.length) sel.innerHTML += '<optgroup label="Personnages">' + chars.map(c=>`<option value="personnages:${c.id}">${esc([c.prenom,c.nom].filter(Boolean).join(' '))}</option>`).join('') + '</optgroup>';
@@ -2503,7 +3489,7 @@ function openEventModal(evId=null) {
       });
     }
   }
-  openModal('modal-event');
+  openEntityPage('modal-event');
 }
 
 function saveEvent() {
@@ -2650,9 +3636,12 @@ function scheduleDueChecks(enable=true) {
   if (_dueTimer) { clearInterval(_dueTimer); _dueTimer = null; }
   if (!enable) return;
   // run every minute
-  _dueTimer = setInterval(checkDueTasksOnce, 60*1000);
+  _dueTimer = setInterval(() => {
+    if (!isAppActive()) return;
+    checkDueTasksOnce();
+  }, 60*1000);
   // initial run
-  checkDueTasksOnce();
+  if (isAppActive()) checkDueTasksOnce();
 }
 
 // run checks when opening a project
@@ -2664,7 +3653,8 @@ if (typeof oldOpenProject === 'function') {
   window.addEventListener('load', ()=> scheduleDueChecks(true));
 }
 
-function openNoteModal(nId=null) {
+function openNoteModal(nId=null, options = {}) {
+  if (!options.skipHash) _setEntityHashRoute('note', nId, 'project');
   state.editingId = nId;
   document.getElementById('modal-note-title').textContent = nId ? 'Modifier la note' : 'Nouvelle note';
   ['note-title','note-content','note-tags','note-due'].forEach(id=>document.getElementById(id).value='');
@@ -2703,7 +3693,7 @@ function openNoteModal(nId=null) {
       }
     }
   }
-  openModal('modal-note');
+  openEntityPage('modal-note');
 }
 
 function saveNote() {
@@ -2852,13 +3842,14 @@ function renderSettings() {
     checkAutoBackup();
   };
   updateBackupStatus();
+  renderConsistencyReport();
 }
 
 // override navigateTo to apply appearance and check backup
 (function(){
   const orig = navigateTo;
-  navigateTo = function(section) {
-    orig(section);
+  navigateTo = function(section, options) {
+    orig(section, options);
     if (section==='parametres') renderSettings();
     const prefs = getProjectPrefs(state.currentProjectId);
     applyAppearance(prefs);
@@ -3087,8 +4078,8 @@ function downloadBlob(blob,filename) {
 // override navigateTo to render manuscript
 (function(){
   const originalNavigate = navigateTo;
-  navigateTo = function(section) {
-    originalNavigate(section);
+  navigateTo = function(section, options) {
+    originalNavigate(section, options);
     if (section === 'manuscrit') renderManuscript();
   };
 })();
@@ -3097,13 +4088,39 @@ function downloadBlob(blob,filename) {
 // MODAL HELPERS
 // ============================================================
 function openModal(id) {
-  document.getElementById(id).classList.remove('hidden');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
 
-function closeModal(id) {
-  document.getElementById(id).classList.add('hidden');
+function openEntityPage(id) {
+  const el = document.getElementById(id);
+  const projectPage = document.getElementById('project-page');
+  if (!el || !projectPage) return;
+  projectPage.classList.add('hidden');
+  el.classList.remove('hidden');
+  el.classList.add('standalone-entity');
   document.body.style.overflow = '';
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('hidden');
+  el.classList.remove('fullscreen-page');
+  el.classList.remove('standalone-entity');
+  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-note' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
+    const projectPage = document.getElementById('project-page');
+    if (projectPage && projectPage.classList.contains('hidden') && state.currentProjectId) {
+      projectPage.classList.remove('hidden');
+    }
+  }
+  if (id === 'modal-character' || id === 'modal-location' || id === 'modal-note' || id === 'modal-relation' || id === 'modal-playlist' || id === 'modal-event') {
+    _restoreSectionHashRoute();
+  }
+  const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .entity-page:not(.hidden)');
+  document.body.style.overflow = hasOpenModal ? 'hidden' : '';
 }
 
 function showConfirm(title, message, callback) {
@@ -3117,6 +4134,16 @@ function showConfirm(title, message, callback) {
 // EVENT LISTENERS
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  perfState.lowPower = shouldUseLowPowerMode();
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq && mq.addEventListener) {
+      mq.addEventListener('change', () => {
+        perfState.lowPower = shouldUseLowPowerMode();
+      });
+    }
+  }
+
   // Confirm button
   document.getElementById('confirm-btn').addEventListener('click', () => {
     if (state.confirmCallback) {
@@ -3128,9 +4155,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Close modals when clicking overlay background
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', e => {
+      if (overlay.classList.contains('standalone-entity')) return;
       if (e.target === overlay) {
-        overlay.classList.add('hidden');
-        document.body.style.overflow = '';
+        closeModal(overlay.id);
       }
     });
   });
@@ -3146,10 +4173,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Escape key closes modals + dropdown
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => {
+    document.querySelectorAll('.modal-overlay:not(.hidden), .entity-page:not(.hidden)').forEach(m => {
       m.classList.add('hidden');
+      m.classList.remove('standalone-entity');
+      m.classList.remove('fullscreen-page');
       document.body.style.overflow = '';
     });
+    const projectPage = document.getElementById('project-page');
+    if (projectPage && projectPage.classList.contains('hidden') && state.currentProjectId) {
+      projectPage.classList.remove('hidden');
+      _restoreSectionHashRoute();
+    }
     document.getElementById('project-dropdown')?.classList.add('hidden');
     showSearchResults(null);
   });
@@ -3157,10 +4191,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Enter key submits focused modal form
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
-    const modal = document.querySelector('.modal-overlay:not(.hidden)');
+    const modal = document.querySelector('.modal-overlay:not(.hidden), .entity-page:not(.hidden)');
     if (!modal) return;
     const id = modal.id;
     if (id === 'modal-new-project') createProject();
+    else if (id === 'modal-new-universe') createUniverse();
     else if (id === 'modal-character') saveCharacter();
     else if (id === 'modal-location')  saveLocation();
     else if (id === 'modal-chapter')   saveChapter();
@@ -3168,6 +4203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ensure project creation buttons work even if clicked early
   document.querySelectorAll('.btn-new-project').forEach(btn => btn.addEventListener('click', openNewProjectModal));
+  document.querySelectorAll('.btn-new-universe').forEach(btn => btn.addEventListener('click', openNewUniverseModal));
 
   // Global search input
   const searchInput = document.getElementById('global-search');
@@ -3192,7 +4228,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => {
     // Only fire when project page is visible and no modal open
     if (document.getElementById('project-page')?.classList.contains('hidden')) return;
-    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+    if (document.querySelector('.modal-overlay:not(.hidden), .entity-page:not(.hidden)')) return;
     if (!state.currentProjectId) return;
     const ctrl = e.ctrlKey || e.metaKey;
 
@@ -3260,8 +4296,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // apply appearance even before project selected (auto by default)
   applyAppearance(getProjectPrefs(state.currentProjectId));
-  // Start on home page
-  showHomePage();
+  // Route startup from hash
+  if (!location.hash) {
+    showHomePage();
+  } else {
+    _applyHashRoute();
+  }
+  window.addEventListener('hashchange', _applyHashRoute);
 });
 
 // ============================================================
@@ -3415,7 +4456,7 @@ function csFieldDisplay(field, value) {
     case 'color':  return `<span style="display:inline-block;width:12px;height:12px;background:${esc(value)};border-radius:2px;border:1px solid #ccc;vertical-align:middle"></span> ${esc(value)}`;
     case 'image':  return value ? `<img src="${value}" style="max-width:56px;max-height:40px;border-radius:3px;vertical-align:middle">` : '';
     case 'link_personnage': { const c = getProjectData(state.currentProjectId,'personnages').find(x=>x.id===value); return c ? esc([c.prenom,c.nom].filter(Boolean).join(' ')) : ''; }
-    case 'link_lieu':      { const l = getProjectData(state.currentProjectId,'lieux').find(x=>x.id===value); return l ? esc(l.nom) : ''; }
+    case 'link_lieu':      { const l = getLocationsForProject(state.currentProjectId,true).find(x=>x.id===value); return l ? esc(l.nom) : ''; }
     case 'link_chapitre':  { const ch = getProjectData(state.currentProjectId,'chapitres').find(x=>x.id===value); return ch ? esc(`Ch. ${ch.numero} – ${ch.titre}`) : ''; }
     case 'tags':   return Array.isArray(value) ? value.map(t=>`<span class="tag-chip">${esc(t)}</span>`).join(' ') : esc(String(value));
     default: return esc(String(value));
@@ -3674,7 +4715,7 @@ function buildCustomItemField(f, val) {
       break;
     }
     case 'link_lieu': {
-      const lieux = getProjectData(state.currentProjectId,'lieux');
+      const lieux = getLocationsForProject(state.currentProjectId,true);
       const opts  = lieux.map(l=>`<option value="${l.id}" ${val===l.id?'selected':''}>${esc(l.nom)}</option>`).join('');
       input = `<select id="ci-${f.id}" class="form-control"><option value="">— Aucun —</option>${opts}</select>`;
       break;
@@ -3778,17 +4819,21 @@ function deleteCustomItemConfirm(itemId, sectionId) {
 // Patch navigateTo to intercept custom_* sections
 (function() {
   const prev = navigateTo;
-  navigateTo = function(section) {
+  navigateTo = function(section, options) {
     if (typeof section === 'string' && section.startsWith('custom_')) {
       const sId = section.slice(7);
       state.currentSection = section;
+      if (!options || !options.skipHash) {
+        const nextHash = `#/project/${state.currentProjectId}/${section}`;
+        if (location.hash !== nextHash) location.hash = nextHash;
+      }
       document.querySelectorAll('.nav-item').forEach(el =>
         el.classList.toggle('active', el.dataset.section === section)
       );
       navigateToCustomSection(sId);
       if (window.innerWidth <= 768) closeSidebarMobile();
     } else {
-      prev(section);
+      prev(section, options);
     }
   };
 })();
@@ -3825,9 +4870,9 @@ function plUpdateTrack(trackId, field, value) {
 
 // Patch openPlaylistModal to handle tracks
 const _origOpenPlaylistModal = openPlaylistModal;
-openPlaylistModal = function(plId = null) {
+openPlaylistModal = function(plId = null, options = {}) {
   _plTracks = [];
-  _origOpenPlaylistModal(plId);
+  _origOpenPlaylistModal(plId, options);
   if (plId) {
     const pl = getProjectData(state.currentProjectId, 'playlists').find(x => x.id === plId);
     if (pl && Array.isArray(pl.titres)) {
@@ -3941,6 +4986,7 @@ saveProjectData = function(projectId, type, data) {
           id: newId,
           name: (data.project.name || 'Projet importé') + ' (copie)',
           description: data.project.description || '',
+          universeId: data.project.universeId || null,
           createdAt: now,
           updatedAt: now
         };
@@ -4182,4 +5228,306 @@ function initSeasonalTheme(projectId) {
     const season = prefs.seasonalOverride || detectDominantSeason(projectId);
     if (season) applySeasonalTheme(season);
   }
+}
+
+// ============================================================
+// ENTITY TAB SYSTEM (onglets personnage / lieu)
+// ============================================================
+function switchEntityTab(tabsContainerId, panelId) {
+  const tabsContainer = document.getElementById(tabsContainerId);
+  if (!tabsContainer) return;
+  // Deactivate all tabs
+  tabsContainer.querySelectorAll('.entity-tab').forEach(t => t.classList.remove('active'));
+  // Activate clicked tab
+  const clickedTab = tabsContainer.querySelector(`[data-tab="${panelId}"]`);
+  if (clickedTab) clickedTab.classList.add('active');
+  // Hide all panels in the same modal
+  const modalBody = tabsContainer.closest('.modal').querySelector('.modal-body');
+  if (!modalBody) return;
+  modalBody.querySelectorAll('.entity-tab-panel').forEach(p => p.classList.remove('active'));
+  // Show target panel
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.add('active');
+}
+
+// ============================================================
+// CHARACTER GALLERY
+// ============================================================
+let _charGalleryPhotos = [];
+
+function renderCharGallery() {
+  const grid = document.getElementById('char-gallery-grid');
+  if (!grid) return;
+  if (!_charGalleryPhotos.length) {
+    grid.innerHTML = '<div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>';
+    return;
+  }
+  grid.innerHTML = _charGalleryPhotos.map((src, i) => `
+    <div class="gallery-item" onclick="openGalleryLightbox(${JSON.stringify(src).replace(/"/g, '&quot;')})">
+      <img src="${src}" alt="Photo ${i + 1}">
+      <button class="gallery-item-remove" onclick="event.stopPropagation();removeCharGalleryPhoto(${i})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addToCharGallery(inputEl) {
+  const files = inputEl.files;
+  if (!files || !files.length) return;
+  for (const file of files) {
+    if (!file.type.match('image.*')) continue;
+    try {
+      const dataUrl = await compressImageFile(file, 800, 800, 0.85);
+      _charGalleryPhotos.push(dataUrl);
+    } catch (e) { /* skip */ }
+  }
+  inputEl.value = '';
+  renderCharGallery();
+}
+
+function removeCharGalleryPhoto(index) {
+  _charGalleryPhotos.splice(index, 1);
+  renderCharGallery();
+}
+
+// ============================================================
+// LOCATION GALLERY
+// ============================================================
+let _locGalleryPhotos = [];
+
+function renderLocGallery() {
+  const grid = document.getElementById('loc-gallery-grid');
+  if (!grid) return;
+  if (!_locGalleryPhotos.length) {
+    grid.innerHTML = '<div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>';
+    return;
+  }
+  grid.innerHTML = _locGalleryPhotos.map((src, i) => `
+    <div class="gallery-item" onclick="openGalleryLightbox(${JSON.stringify(src).replace(/"/g, '&quot;')})">
+      <img src="${src}" alt="Photo ${i + 1}">
+      <button class="gallery-item-remove" onclick="event.stopPropagation();removeLocGalleryPhoto(${i})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addToLocGallery(inputEl) {
+  const files = inputEl.files;
+  if (!files || !files.length) return;
+  for (const file of files) {
+    if (!file.type.match('image.*')) continue;
+    try {
+      const dataUrl = await compressImageFile(file, 800, 800, 0.85);
+      _locGalleryPhotos.push(dataUrl);
+    } catch (e) { /* skip */ }
+  }
+  inputEl.value = '';
+  renderLocGallery();
+}
+
+function removeLocGalleryPhoto(index) {
+  _locGalleryPhotos.splice(index, 1);
+  renderLocGallery();
+}
+
+// ============================================================
+// GALLERY LIGHTBOX
+// ============================================================
+function openGalleryLightbox(src) {
+  const lb = document.createElement('div');
+  lb.className = 'gallery-lightbox';
+  lb.onclick = () => lb.remove();
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = 'Photo agrandie';
+  lb.appendChild(img);
+  document.body.appendChild(lb);
+}
+
+// ============================================================
+// CHARACTER RELATIONS (in character sheet)
+// ============================================================
+function renderCharRelations(charId, source) {
+  const listEl = document.getElementById('char-relations-list');
+  const addBtn = document.getElementById('char-add-relation-btn');
+  const formEl = document.getElementById('char-relation-form');
+  if (!listEl) return;
+
+  if (!charId) {
+    listEl.innerHTML = '<div class="no-items"><div class="no-icon">🔗</div><p>Enregistrez d\'abord le personnage pour gérer ses relations.</p></div>';
+    if (addBtn) addBtn.style.display = 'none';
+    if (formEl) formEl.classList.add('hidden');
+    return;
+  }
+  if (addBtn) addBtn.style.display = '';
+
+  // Populate the "other char" select (excluding current char)
+  const allChars = getCharactersForProject(state.currentProjectId, true);
+  const otherSelect = document.getElementById('char-rel-other');
+  if (otherSelect) {
+    otherSelect.innerHTML = allChars
+      .filter(c => c.id !== charId)
+      .map(c => `<option value="${c.id}">${esc([c.prenom, c.nom].filter(Boolean).join(' '))}</option>`)
+      .join('');
+  }
+
+  const allRels = getRelationsForProject(state.currentProjectId, true);
+  const charRels = allRels.filter(r => r.personA === charId || r.personB === charId);
+
+  if (!charRels.length) {
+    listEl.innerHTML = '<div class="no-items"><div class="no-icon">🔗</div><p>Aucune relation pour ce personnage.</p></div>';
+    return;
+  }
+
+  listEl.innerHTML = charRels.map(r => {
+    const otherId = r.personA === charId ? r.personB : r.personA;
+    const other = allChars.find(c => c.id === otherId);
+    const otherName = other ? [other.prenom, other.nom].filter(Boolean).join(' ') : 'Inconnu';
+    const avatarContent = other && other.photo
+      ? `<img src="${other.photo}" alt="${esc(otherName)}">`
+      : '👤';
+    const intensiteDots = '●'.repeat(r.intensite || 0) + '○'.repeat(5 - (r.intensite || 0));
+    const statutBadge = r.statut && r.statut !== 'Actuelle'
+      ? `<span class="badge badge-secondaire" style="font-size:10px;margin-left:6px">${esc(r.statut)}</span>` : '';
+    return `
+      <div class="relation-mini-card">
+        <div class="rel-avatar">${avatarContent}</div>
+        <div class="rel-info">
+          <div class="rel-name">${esc(otherName)}${statutBadge}</div>
+          <div class="rel-type">${esc(r.type || '')} <span style="color:var(--primary);letter-spacing:1px;font-size:11px">${intensiteDots}</span></div>
+          ${r.description ? `<div class="rel-desc">${esc(r.description)}</div>` : ''}
+        </div>
+        <div class="rel-actions">
+          <button class="btn-icon" onclick="editCharRelation('${r.id}','${r._source || 'project'}')" title="Modifier">✏️</button>
+          <button class="btn-icon" onclick="deleteCharRelation('${r.id}','${r._source || 'project'}')" title="Supprimer">🗑️</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleCharRelationForm(editData) {
+  const formEl = document.getElementById('char-relation-form');
+  if (!formEl) return;
+  const isHidden = formEl.classList.contains('hidden');
+  if (isHidden) {
+    formEl.classList.remove('hidden');
+    // Reset form
+    document.getElementById('char-rel-type').value = 'Amour/Romance';
+    document.getElementById('char-rel-intensite').value = 3;
+    document.getElementById('char-rel-statut').value = 'Actuelle';
+    document.getElementById('char-rel-description').value = '';
+    delete formEl.dataset.editingRelId;
+    delete formEl.dataset.editingRelSource;
+    if (editData) {
+      formEl.dataset.editingRelId = editData.id;
+      formEl.dataset.editingRelSource = editData._source || 'project';
+      if (editData.otherId) document.getElementById('char-rel-other').value = editData.otherId;
+      document.getElementById('char-rel-type').value = editData.type || 'Amour/Romance';
+      document.getElementById('char-rel-intensite').value = editData.intensite || 3;
+      document.getElementById('char-rel-statut').value = editData.statut || 'Actuelle';
+      document.getElementById('char-rel-description').value = editData.description || '';
+    }
+  } else {
+    formEl.classList.add('hidden');
+  }
+}
+
+function saveCharRelationInline() {
+  const charId = state.editingId;
+  if (!charId) { showToast('Personnage non enregistré', 'error'); return; }
+  const otherId = document.getElementById('char-rel-other')?.value;
+  if (!otherId) { showToast('Sélectionnez un personnage', 'error'); return; }
+  if (otherId === charId) { showToast('Impossible de créer une relation avec soi-même', 'error'); return; }
+
+  const relationType = document.getElementById('char-rel-type').value;
+  const relationDesc = document.getElementById('char-rel-description').value.trim();
+  const normalized = normalizeRelationPair(charId, otherId, relationType, relationDesc);
+
+  const data = {
+    personA: normalized.personA,
+    personB: normalized.personB,
+    type: relationType,
+    intensite: parseInt(document.getElementById('char-rel-intensite').value) || 3,
+    description: relationDesc,
+    statut: document.getElementById('char-rel-statut').value,
+    evolution: '',
+    notes: ''
+  };
+
+  const projectId = state.currentProjectId;
+  const formEl = document.getElementById('char-relation-form');
+  const editingRelId = formEl?.dataset.editingRelId;
+  const editingRelSource = formEl?.dataset.editingRelSource || 'project';
+
+  let list = editingRelSource === 'universe' && state.currentUniverseId
+    ? getUniverseData(state.currentUniverseId, 'relations')
+    : getProjectData(projectId, 'relations');
+
+  // Check for duplicates
+  const duplicateIdx = list.findIndex(r =>
+    relationPairKey(r.personA, r.personB, r.type) === relationPairKey(data.personA, data.personB, data.type) &&
+    (!editingRelId || r.id !== editingRelId)
+  );
+
+  if (editingRelId) {
+    const idx = list.findIndex(r => r.id === editingRelId);
+    if (idx !== -1) list[idx] = { ...list[idx], ...data };
+  } else {
+    if (duplicateIdx !== -1) {
+      showToast('Cette relation existe déjà', 'error');
+      return;
+    }
+    list.push({ id: uid(), ...data });
+  }
+
+  if (editingRelSource === 'universe' && state.currentUniverseId) {
+    saveUniverseData(state.currentUniverseId, 'relations', list);
+  } else {
+    saveProjectData(projectId, 'relations', list);
+  }
+  touchProject(projectId);
+  toggleCharRelationForm();
+  renderCharRelations(charId, state.editingSource);
+  showToast(editingRelId ? 'Relation modifiée' : 'Relation créée', 'success');
+}
+
+function editCharRelation(relId, source) {
+  const pool = source === 'universe'
+    ? getUniverseData(state.currentUniverseId, 'relations')
+    : getProjectData(state.currentProjectId, 'relations');
+  const r = pool.find(x => x.id === relId);
+  if (!r) return;
+  const charId = state.editingId;
+  const otherId = r.personA === charId ? r.personB : r.personA;
+  toggleCharRelationForm({
+    id: relId,
+    _source: source,
+    otherId,
+    type: r.type,
+    intensite: r.intensite,
+    statut: r.statut,
+    description: r.description
+  });
+}
+
+function deleteCharRelation(relId, source) {
+  showConfirm('Supprimer cette relation ?', 'Cette action est irréversible.', () => {
+    let list = source === 'universe'
+      ? getUniverseData(state.currentUniverseId, 'relations')
+      : getProjectData(state.currentProjectId, 'relations');
+    list = list.filter(r => r.id !== relId);
+    if (source === 'universe') {
+      saveUniverseData(state.currentUniverseId, 'relations', list);
+    } else {
+      saveProjectData(state.currentProjectId, 'relations', list);
+    }
+    touchProject(state.currentProjectId);
+    closeModal('modal-confirm');
+    renderCharRelations(state.editingId, state.editingSource);
+    // Update relations section if open
+    if (state.currentSection === 'relations' && typeof renderRelations === 'function') renderRelations();
+    showToast('Relation supprimée', 'success');
+  });
+}
+
+function addRelationFromCharSheet() {
+  toggleCharRelationForm();
 }

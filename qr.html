@@ -20,17 +20,29 @@
     <h2>📱 WorldBuilder</h2>
     <p>Scanne avec l'appareil photo de ton téléphone</p>
     <div id="qrcode"></div>
-    <div class="url">https://swift-bottles-tease.loca.lt</div>
+    <div id="share-url" class="url"></div>
     <ol class="steps">
       <li>Ouvre l'appareil photo</li>
       <li>Pointe vers le QR code</li>
       <li>Appuie sur le lien qui apparaît</li>
-      <li>Entre le mot de passe : <strong>176.187.162.162</strong></li>
+      <li id="sync-step" style="display:none">Entre le code Sync : <strong id="sync-code"></strong></li>
     </ol>
   </div>
   <script>
+    const params = new URLSearchParams(location.search);
+    const base = location.href.split('?')[0].replace(/[^/]*$/, '');
+    const fallbackUrl = base + 'index.html';
+    const shareUrl = params.get('url') || fallbackUrl;
+    const syncCode = params.get('code') || '';
+
+    document.getElementById('share-url').textContent = shareUrl;
+    if (syncCode) {
+      document.getElementById('sync-step').style.display = '';
+      document.getElementById('sync-code').textContent = syncCode;
+    }
+
     new QRCode(document.getElementById('qrcode'), {
-      text: 'https://swift-bottles-tease.loca.lt',
+      text: shareUrl,
       width: 256,
       height: 256,
       colorDark: '#6366f1',

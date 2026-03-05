@@ -78,7 +78,9 @@ function openChapterEditor(chapId) {
   document.getElementById('ce-notes').value  = chap.notes || '';
 
   // POV select (characters)
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = typeof getCharactersForProject === 'function'
+    ? getCharactersForProject(state.currentProjectId, true)
+    : getProjectData(state.currentProjectId, 'personnages');
   const povSel = document.getElementById('ce-pov');
   povSel.innerHTML = '<option value="">— Aucun —</option>' +
     chars.map(c => {
@@ -140,7 +142,9 @@ function openSceneEditor(sceneId) {
   document.getElementById('se-title').value = scene.titre || '';
 
   // POV select (characters)
-  const chars = getProjectData(state.currentProjectId, 'personnages');
+  const chars = typeof getCharactersForProject === 'function'
+    ? getCharactersForProject(state.currentProjectId, true)
+    : getProjectData(state.currentProjectId, 'personnages');
   const povSel = document.getElementById('se-pov');
   povSel.innerHTML = '<option value="">— Aucun —</option>' +
     chars.map(c => {
@@ -372,6 +376,7 @@ function saveSceneEditor() {
 function _startAutoSave() {
   _stopAutoSave();
   editorState.autoSaveTimer = setInterval(() => {
+    if (document.hidden) return;
     if (editorState.isDirty) _saveCurrentEditor();
   }, 30000);
 }
@@ -405,6 +410,7 @@ function _setAutosaveStatus(status) {
 
 // Periodic "saved X seconds ago" update
 setInterval(() => {
+  if (document.hidden) return;
   if (!editorState.type || !editorState.lastSaved || editorState.isDirty) return;
   const pfx = editorState.type === 'chapter' ? 'ce' : 'se';
   const el  = document.getElementById(pfx + '-autosave');
@@ -585,7 +591,10 @@ function _startSessionStats() {
   editorState.sessionStartWords = htmlWordCount(editorState.quill);
   if (editorState.sessionTimer) clearInterval(editorState.sessionTimer);
   _updateSessionStats();
-  editorState.sessionTimer = setInterval(_updateSessionStats, 10000);
+  editorState.sessionTimer = setInterval(() => {
+    if (document.hidden) return;
+    _updateSessionStats();
+  }, 10000);
 }
 
 function _stopSessionStats() {
@@ -907,4 +916,14 @@ document.addEventListener('keydown', e => {
     }
     if (editorState.focusMode) _applyFocusMode(false);
   }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!editorState.type) return;
+  if (document.hidden) {
+    if (editorState.isDirty) _saveCurrentEditor();
+    return;
+  }
+  _updateStats();
+  _updateSessionStats();
 });

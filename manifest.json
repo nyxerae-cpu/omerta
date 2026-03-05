@@ -1,70 +1,36 @@
 {
-  "name": "WorldBuilder - Comprehensive Worldbuilding Tool",
+  "name": "WorldBuilder",
   "short_name": "WorldBuilder",
-  "description": "Complete worldbuilding companion for novelists and fantasy writers. Manage characters, locations, plots, timelines, and more.",
-  "start_url": "./index.html",
+  "description": "Outil de worldbuilding pour romans.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#FFFFFF",
   "theme_color": "#6366F1",
-  "screenshots": [
+  "lang": "fr",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%236366F1' width='192' height='192'/><text x='96' y='96' font-size='48' fill='white' text-anchor='middle' dy='.3em'>WB</text></svg>",
+      "src": "./icons/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%236366F1' width='512' height='512'/><text x='256' y='256' font-size='128' fill='white' text-anchor='middle' dy='.3em'>WB</text></svg>",
+      "src": "./icons/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "categories": ["productivity", "utilities"],
-  "shortcuts": [
-    {
-      "name": "New Project",
-      "short_name": "Project",
-      "description": "Create a new worldbuilding project",
-      "url": "./index.html?action=new",
-      "icons": [
-        {
-          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%236366F1' width='96' height='96' rx='20'/><text x='48' y='48' font-size='40' fill='white' text-anchor='middle' dy='.3em'>+</text></svg>",
-          "sizes": "96x96",
-          "type": "image/svg+xml"
-        }
-      ]
+      "purpose": "any"
     },
     {
-      "name": "Characters",
-      "short_name": "Characters",
-      "description": "View your characters",
-      "url": "./index.html?section=personnages",
-      "icons": [
-        {
-          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><circle cx='48' cy='30' r='15' fill='%236366F1'/><path fill='%236366F1' d='M20 60c0-15 12-25 28-25s28 10 28 25v20H20z'/></svg>",
-          "sizes": "96x96",
-          "type": "image/svg+xml"
-        }
-      ]
+      "src": "./icons/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
-  ],
-  "share_target": {
-    "action": "./share",
-    "method": "POST",
-    "enctype": "application/x-www-form-urlencoded",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url",
-      "files": [
-        {
-          "name": "project",
-          "accept": ["application/json", ".json"]
-        }
-      ]
-    }
-  }
+  ]
 }

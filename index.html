@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#6366F1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WorldBuilder">
   <title>WorldBuilder</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="scenes.css">
@@ -24,6 +28,9 @@
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <button class="btn btn-ghost" onclick="openBibliotheque()">📚 Bibliothèque</button>
+      <button class="btn btn-ghost" onclick="openAssistantLibrary()">🤝 Bibliothèque Assistant</button>
+      <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">📲 Installer l'app</button>
+      <button class="btn btn-secondary btn-new-universe">+ Nouvel univers</button>
       <button class="btn btn-primary btn-new-project">+ Nouveau projet</button>
     </div>
   </div>
@@ -60,6 +67,7 @@
         <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
       </div>
       <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">📚 Bibliothèque</button>
+      <button class="btn btn-ghost" onclick="openAssistantLibrary()" style="font-size:13px">🤝 Bibliothèque Assistant</button>
       <div class="dropdown" id="dropdown-container">
         <button class="btn btn-ghost dropdown-btn" onclick="toggleDropdown()">
           Changer de projet
@@ -132,6 +140,10 @@
         <button class="nav-item" data-section="notes" onclick="navigateTo('notes')">
           <span class="nav-icon">📝</span>
           <span class="nav-label">Notes</span>
+        </button>
+        <button class="nav-item" data-section="assistant" onclick="navigateTo('assistant')">
+          <span class="nav-icon">🤝</span>
+          <span class="nav-label">Assistant</span>
         </button>
         <!-- Citations -->
         <button class="nav-item" data-section="citations" onclick="navigateTo('citations')">
@@ -363,6 +375,8 @@
               <button class="btn btn-secondary" onclick="analyserProse()">📊 Stats prose</button>
               <button class="btn btn-secondary" onclick="analyserCoherence()">🔍 Incohérences</button>
               <button class="btn btn-secondary" onclick="runSpellcheck()">🔤 Orthographe</button>
+              <button class="btn btn-secondary" onclick="runGrammarCheck()">📝 Grammaire</button>
+              <button class="btn btn-secondary" onclick="detectEntitiesFromEditor()">🧠 Détecter entrées</button>
               <button class="btn btn-secondary" onclick="openPaletteGenerator()">🎨 Palettes</button>
             </div>
 
@@ -428,6 +442,12 @@
           <button class="btn btn-primary" onclick="openEventModal()">+ Ajouter événement</button>
         </div>
         <div id="timeline-filters" class="form-row" style="gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;align-items:center">
+            <label><input type="checkbox" id="timeline-scope-universe" onchange="renderTimeline()"> Mode série (tous les livres)</label>
+          </div>
+          <select id="timeline-filter-project" class="form-control hidden" onchange="renderTimeline()">
+            <option value="">Tous les livres</option>
+          </select>
           <select id="timeline-filter-type" class="form-control" onchange="renderTimeline()">
             <option value="">Tous types</option>
             <option value="Rencontre">Rencontre</option>
@@ -450,6 +470,7 @@
           </div>
           <input type="text" id="timeline-filter-personnage" class="form-control" placeholder="Filtrer par nom" oninput="debouncedRenderTimeline()">
         </div>
+        <div id="timeline-smart-insights" class="timeline-smart-panel hidden"></div>
         <div id="timeline-list"></div>
       </section>
 
@@ -461,6 +482,64 @@
         </div>
         <input type="text" id="notes-search" class="form-control" placeholder="Rechercher dans les notes..." oninput="debouncedRenderNotes()" style="margin-bottom:12px;">
         <div id="notes-list"></div>
+      </section>
+
+      <!-- Assistant projet (chat d'abord, paramètres ensuite) -->
+      <section id="section-assistant" class="content-section hidden">
+        <div class="section-header">
+          <h2>Assistant du projet</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="openAssistantLibrary()">Ouvrir la Bibliothèque Assistant</button>
+            <button id="assistant-toggle-advanced-btn" class="btn btn-secondary btn-sm" onclick="assistantToggleAdvancedUI()">Afficher paramètres</button>
+          </div>
+        </div>
+
+        <div id="assistant-project-advanced" class="assistant-panel hidden" style="margin-bottom:12px">
+          <h3 style="margin-bottom:10px">Paramètres</h3>
+          <div class="assistant-top-controls" style="grid-template-columns:repeat(2,minmax(220px,1fr));margin-bottom:10px">
+            <div class="form-group" style="margin:0">
+              <label for="assistant-scope">Portée des données</label>
+              <select id="assistant-scope" class="form-control" onchange="renderAssistant()">
+                <option value="project">Livre courant</option>
+                <option value="universe">Tous les tomes de l'univers</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label for="assistant-chat-mode">Mode discussion</label>
+              <select id="assistant-chat-mode" class="form-control" onchange="assistantUpdateChatModeUI()">
+                <option value="coach">Coach narratif</option>
+                <option value="persona">Discussion avec un perso</option>
+                <option value="group">Discussion de groupe</option>
+              </select>
+            </div>
+            <div class="form-group" id="assistant-mode-persona-wrap" style="margin:0;display:none">
+              <label for="assistant-persona-id">Personnage</label>
+              <select id="assistant-persona-id" class="form-control"></select>
+            </div>
+            <div class="form-group" id="assistant-mode-group-wrap" style="margin:0;display:none">
+              <label for="assistant-group-ids">Groupe</label>
+              <select id="assistant-group-ids" class="form-control" multiple style="height:92px"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="assistant-panel assistant-chat-panel">
+          <h3>Conversation</h3>
+          <p class="settings-hint" style="margin-bottom:10px">Mode classique: ecris ton message et l'assistant repond.</p>
+
+          <div class="assistant-quick-actions" style="margin-bottom:10px">
+            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Je veux créer un perso mais je n\'ai pas d\'idée')">Idées perso</button>
+            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Je suis bloqué sur ma scène, aide-moi')">Débloquer scène</button>
+            <button class="btn btn-secondary btn-sm" onclick="assistantQuickAsk('Propose-moi 5 twists cohérents')">Twists</button>
+          </div>
+
+          <div id="assistant-chat" class="assistant-chat"></div>
+
+          <div class="assistant-input-row">
+            <input type="text" id="assistant-chat-input" class="form-control" placeholder="Ecris ton message..." onkeydown="if(event.key==='Enter'){assistantSendMessage();}">
+            <button class="btn btn-primary" onclick="assistantSendMessage()">Envoyer</button>
+          </div>
+        </div>
       </section>
 
       <!-- Paramètres -->
@@ -575,6 +654,27 @@
             </div>
           </div>
 
+          <div class="settings-card">
+            <h3>✅ Analyse de cohérence</h3>
+            <p class="settings-hint" style="margin-bottom:12px">Vérifie automatiquement les incohérences (relations, timeline, liens cassés, POV manquants).</p>
+            <div id="consistency-summary" class="settings-hint" style="margin-bottom:10px">Aucune analyse lancée.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+              <button class="btn btn-secondary btn-sm" onclick="analyzeConsistencyNow()">🔎 Lancer l'analyse</button>
+            </div>
+            <div id="consistency-report" class="consistency-report"></div>
+          </div>
+
+          <div class="settings-card">
+            <h3>Outils techniques</h3>
+            <p class="settings-hint" style="margin-bottom:12px">Ponts utilitaires pour partage mobile, version autonome et debug local.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+              <button class="btn btn-secondary btn-sm" onclick="openQrSharePage()">📱 Ouvrir QR de partage</button>
+              <button class="btn btn-secondary btn-sm" onclick="openStandaloneSnapshot()">🧪 Ouvrir version autonome</button>
+              <button class="btn btn-secondary btn-sm" onclick="showTunnelCommand()">🌐 Aide tunnel local</button>
+            </div>
+            <div class="settings-hint">Le QR utilise l'URL courante et inclut le code Sync si disponible.</div>
+          </div>
+
           <div class="settings-card danger-zone">
             <h3>Zone de danger</h3>
             <p class="settings-hint" style="margin-bottom:16px">Cette action est irréversible et supprime toutes les données du projet.</p>
@@ -627,6 +727,77 @@
       </section>
 
     </main>
+  </div>
+</div>
+
+<!-- ===================== ASSISTANT LIBRARY PAGE ===================== -->
+<div id="assistant-library-page" class="page hidden">
+  <div class="assistant-library-header">
+    <div class="assistant-library-header-left">
+      <button class="btn btn-ghost" onclick="closeAssistantLibrary()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Retour
+      </button>
+      <div>
+        <h1 class="app-title" style="color:var(--gray-800);font-size:20px">Bibliothèque Assistant</h1>
+        <p class="app-subtitle">Base globale de référence pour l'assistant, sans ouvrir de projet</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="assistant-library-content">
+    <div class="assistant-panel">
+      <h3>Connaissances globales</h3>
+      <p class="settings-hint" style="margin-bottom:10px">Ajoute tes règles, tropes, notes universelles et sources. Ces données restent disponibles partout.</p>
+
+      <div class="form-group">
+        <label for="assistant-hub-kb-category">Catégorie</label>
+        <select id="assistant-hub-kb-category" class="form-control">
+          <option value="livre">Livre / source</option>
+          <option value="trope">Trope</option>
+          <option value="prenom">Prénom</option>
+          <option value="regle">Règle d'écriture</option>
+          <option value="univers">Règle d'univers</option>
+          <option value="note">Note libre</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="assistant-hub-kb-input">Contenu</label>
+        <textarea id="assistant-hub-kb-input" class="form-control" rows="3" placeholder="Ex: Eviter les descriptions longues avant un dialogue tendu"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="assistantHubAddKnowledge()">+ Ajouter</button>
+        <button class="btn btn-secondary btn-sm" onclick="assistantHubExportKnowledge()">⬇ Export JSON</button>
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+          ⬆ Import JSON
+          <input type="file" id="assistant-hub-kb-file" accept=".json" onchange="assistantHubImportKnowledgeFile(event)" style="display:none">
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="assistantHubClearKnowledgeConfirm()">Vider</button>
+      </div>
+
+      <div class="form-group">
+        <label for="assistant-hub-bulk-input">Import rapide (une ligne = une entrée)</label>
+        <textarea id="assistant-hub-bulk-input" class="form-control" rows="4" placeholder="Ex:\nregle: priorité au conflit\ntrope: enemies to lovers"></textarea>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="assistantHubImportBulk()">Importer en masse</button>
+
+      <div id="assistant-hub-kb-stats" class="settings-hint" style="margin:12px 0 8px"></div>
+      <div id="assistant-hub-kb-list" class="assistant-kb-list"></div>
+    </div>
+
+    <div class="assistant-panel">
+      <h3>Contexte global assistant</h3>
+      <p class="settings-hint" style="margin-bottom:10px">Ajoute la direction narrative générale, le ton, les contraintes, les interdits.</p>
+      <div class="form-group">
+        <textarea id="assistant-hub-global-context" class="form-control" rows="7" placeholder="Ex: Thriller romantique, narration en focalisation interne, pas de deus ex machina..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="assistantHubSaveContext()">Enregistrer le contexte</button>
+      </div>
+      <div id="assistant-hub-facts-stats" class="settings-hint" style="margin-top:12px"></div>
+    </div>
   </div>
 </div>
 
@@ -753,6 +924,10 @@
         <label for="new-project-desc">Description</label>
         <textarea id="new-project-desc" class="form-control" rows="3" placeholder="Une brève description de votre histoire..."></textarea>
       </div>
+      <div class="form-group">
+        <label for="new-project-universe">Univers (optionnel)</label>
+        <select id="new-project-universe" class="form-control"></select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-new-project')">Annuler</button>
@@ -761,8 +936,32 @@
   </div>
 </div>
 
+<!-- Nouvel univers -->
+<div id="modal-new-universe" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nouvel univers</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-universe')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="new-universe-name">Nom de l'univers *</label>
+        <input type="text" id="new-universe-name" class="form-control" placeholder="Saga des Brumes...">
+      </div>
+      <div class="form-group">
+        <label for="new-universe-desc">Description</label>
+        <textarea id="new-universe-desc" class="form-control" rows="3" placeholder="Contexte global de la série..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-universe')">Annuler</button>
+      <button class="btn btn-primary" onclick="createUniverse()">Créer l'univers</button>
+    </div>
+  </div>
+</div>
+
 <!-- Relation -->
-<div id="modal-relation" class="modal-overlay hidden">
+<div id="modal-relation" class="entity-page hidden">
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-relation-title">Nouvelle relation</h3>
@@ -786,6 +985,7 @@
             <option>Amour/Romance</option>
             <option>Amitié</option>
             <option>Famille</option>
+            <option>Frère/Sœur</option>
             <option>Conflit/Ennemis</option>
             <option>Professionnel</option>
             <option>Mentor/Élève</option>
@@ -817,6 +1017,12 @@
         <label for="rel-notes">Notes</label>
         <textarea id="rel-notes" class="form-control" rows="2"></textarea>
       </div>
+      <div id="rel-shared-wrap" class="form-group hidden">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="rel-shared">
+          Relation partagée dans l'univers
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-relation')">Annuler</button>
@@ -826,85 +1032,169 @@
 </div>
 
 <!-- Personnage -->
-<div id="modal-character" class="modal-overlay hidden">
+<div id="modal-character" class="entity-page hidden">
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-character-title">Nouveau personnage</h3>
       <button class="modal-close" onclick="closeModal('modal-character')">✕</button>
     </div>
+    <!-- Onglets horizontaux -->
+    <div class="entity-tabs" id="char-tabs">
+      <button class="entity-tab active" data-tab="char-tab-identite" onclick="switchEntityTab('char-tabs','char-tab-identite')">👤 Identité</button>
+      <button class="entity-tab" data-tab="char-tab-apparence" onclick="switchEntityTab('char-tabs','char-tab-apparence')">✨ Apparence</button>
+      <button class="entity-tab" data-tab="char-tab-psychologie" onclick="switchEntityTab('char-tabs','char-tab-psychologie')">🧠 Psychologie</button>
+      <button class="entity-tab" data-tab="char-tab-reseau" onclick="switchEntityTab('char-tabs','char-tab-reseau')">🔗 Réseau</button>
+      <button class="entity-tab" data-tab="char-tab-galerie" onclick="switchEntityTab('char-tabs','char-tab-galerie')">🖼️ Galerie</button>
+    </div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="char-prenom">Prénom *</label>
-          <input type="text" id="char-prenom" class="form-control" placeholder="Alice">
+      <!-- ═══ Onglet Identité ═══ -->
+      <div class="entity-tab-panel active" id="char-tab-identite">
+        <div class="char-identity-layout">
+          <div class="char-identity-photo">
+            <div id="char-photo-preview" class="char-photo-large"></div>
+            <input type="file" id="char-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'char-photo-preview', 'char-photo-remove')" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost btn-sm" id="char-photo-remove" style="display:none;margin-top:4px" onclick="removeCharacterPhoto()">Supprimer la photo</button>
+          </div>
+          <div class="char-identity-fields">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="char-prenom">Prénom *</label>
+                <input type="text" id="char-prenom" class="form-control" placeholder="Alice">
+              </div>
+              <div class="form-group">
+                <label for="char-nom">Nom</label>
+                <input type="text" id="char-nom" class="form-control" placeholder="Dupont">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="char-age">Âge</label>
+                <input type="number" id="char-age" class="form-control" placeholder="28" min="0">
+              </div>
+              <div class="form-group">
+                <label for="char-role">Rôle</label>
+                <select id="char-role" class="form-control">
+                  <option value="Protagoniste">Protagoniste</option>
+                  <option value="Love Interest">Love Interest</option>
+                  <option value="Antagoniste">Antagoniste</option>
+                  <option value="Secondaire">Secondaire</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="char-notes">Notes</label>
+              <textarea id="char-notes" class="form-control" rows="4" placeholder="Description générale, contexte..."></textarea>
+            </div>
+            <div id="char-shared-wrap" class="form-group hidden">
+              <label style="display:flex;align-items:center;gap:8px">
+                <input type="checkbox" id="char-shared">
+                Personnage partagé dans l'univers
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="char-nom">Nom</label>
-          <input type="text" id="char-nom" class="form-control" placeholder="Dupont">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="char-age">Âge</label>
-          <input type="number" id="char-age" class="form-control" placeholder="28" min="0">
-        </div>
-        <div class="form-group">
-          <label for="char-role">Rôle</label>
-          <select id="char-role" class="form-control">
-            <option value="Protagoniste">Protagoniste</option>
-            <option value="Love Interest">Love Interest</option>
-            <option value="Antagoniste">Antagoniste</option>
-            <option value="Secondaire">Secondaire</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="char-notes">Notes</label>
-        <textarea id="char-notes" class="form-control" rows="4" placeholder="Traits de personnalité, backstory, arc narratif..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Photo</label>
-        <div id="char-photo-preview" style="margin-bottom:8px"></div>
-        <input type="file" id="char-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'char-photo-preview', 'char-photo-remove')">
-        <button type="button" class="btn btn-ghost" id="char-photo-remove" style="display:none;margin-top:8px" onclick="removeCharacterPhoto()">Supprimer la photo</button>
       </div>
 
-      <details class="accordion" open>
-        <summary>Apparence</summary>
-        <div class="form-group">
-          <div class="form-row">
-            <div class="form-group"><label for="char-yeux">Yeux</label><input id="char-yeux" class="form-control" type="text"></div>
-            <div class="form-group"><label for="char-cheveux">Cheveux</label><input id="char-cheveux" class="form-control" type="text"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label for="char-taille">Taille</label><input id="char-taille" class="form-control" type="text"></div>
-            <div class="form-group"><label for="char-style">Style vestimentaire</label><input id="char-style" class="form-control" type="text"></div>
-          </div>
-          <div class="form-group"><label for="char-detail">Détail marquant</label><input id="char-detail" class="form-control" type="text"></div>
+      <!-- ═══ Onglet Apparence ═══ -->
+      <div class="entity-tab-panel" id="char-tab-apparence">
+        <div class="form-row">
+          <div class="form-group"><label for="char-yeux">Yeux</label><input id="char-yeux" class="form-control" type="text"></div>
+          <div class="form-group"><label for="char-cheveux">Cheveux</label><input id="char-cheveux" class="form-control" type="text"></div>
         </div>
-      </details>
-
-      <details class="accordion">
-        <summary>Psychologie</summary>
-        <div class="form-group">
-          <div class="form-row">
-            <div class="form-group"><label for="char-trait-1">Trait 1</label><input id="char-trait-1" class="form-control" type="text"></div>
-            <div class="form-group"><label for="char-trait-2">Trait 2</label><input id="char-trait-2" class="form-control" type="text"></div>
-            <div class="form-group"><label for="char-trait-3">Trait 3</label><input id="char-trait-3" class="form-control" type="text"></div>
-          </div>
-          <div class="form-group"><label for="char-blessure">Blessure principale</label><textarea id="char-blessure" class="form-control" rows="2"></textarea></div>
-          <div class="form-row">
-            <div class="form-group"><label for="char-peur">Peur principale</label><input id="char-peur" class="form-control" type="text"></div>
-            <div class="form-group"><label for="char-desir">Désir profond</label><input id="char-desir" class="form-control" type="text"></div>
-          </div>
-          <div class="form-group"><label for="char-arc">Arc d'évolution</label><textarea id="char-arc" class="form-control" rows="2"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label for="char-taille">Taille</label><input id="char-taille" class="form-control" type="text"></div>
+          <div class="form-group"><label for="char-style">Style vestimentaire</label><input id="char-style" class="form-control" type="text"></div>
         </div>
-      </details>
+        <div class="form-group"><label for="char-detail">Détail marquant</label><input id="char-detail" class="form-control" type="text"></div>
+      </div>
 
-      <div class="form-group">
-        <label for="char-backstory">Backstory (texte riche)</label>
-        <div id="char-backstory-editor" class="editor-quill-wrap" style="height:180px; background:#fff;"></div>
-        <textarea id="char-backstory" class="form-control" rows="6" placeholder="Backstory..." style="display:none;"></textarea>
+      <!-- ═══ Onglet Psychologie ═══ -->
+      <div class="entity-tab-panel" id="char-tab-psychologie">
+        <div class="form-row">
+          <div class="form-group"><label for="char-trait-1">Trait 1</label><input id="char-trait-1" class="form-control" type="text"></div>
+          <div class="form-group"><label for="char-trait-2">Trait 2</label><input id="char-trait-2" class="form-control" type="text"></div>
+          <div class="form-group"><label for="char-trait-3">Trait 3</label><input id="char-trait-3" class="form-control" type="text"></div>
+        </div>
+        <div class="form-group"><label for="char-blessure">Blessure principale</label><textarea id="char-blessure" class="form-control" rows="2"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label for="char-peur">Peur principale</label><input id="char-peur" class="form-control" type="text"></div>
+          <div class="form-group"><label for="char-desir">Désir profond</label><input id="char-desir" class="form-control" type="text"></div>
+        </div>
+        <div class="form-group"><label for="char-arc">Arc d'évolution</label><textarea id="char-arc" class="form-control" rows="2"></textarea></div>
+        <div class="form-group">
+          <label for="char-backstory">Backstory (texte riche)</label>
+          <div id="char-backstory-editor" class="editor-quill-wrap" style="height:180px; background:#fff;"></div>
+          <textarea id="char-backstory" class="form-control" rows="6" placeholder="Backstory..." style="display:none;"></textarea>
+        </div>
+      </div>
+
+      <!-- ═══ Onglet Réseau ═══ -->
+      <div class="entity-tab-panel" id="char-tab-reseau">
+        <div class="entity-tab-header">
+          <h4>Relations de ce personnage</h4>
+          <button class="btn btn-primary btn-sm" id="char-add-relation-btn" onclick="toggleCharRelationForm()" style="display:none">+ Ajouter une relation</button>
+        </div>
+        <!-- Formulaire inline de création de relation -->
+        <div id="char-relation-form" class="char-relation-form hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="char-rel-other">Personnage *</label>
+              <select id="char-rel-other" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="char-rel-type">Type</label>
+              <select id="char-rel-type" class="form-control">
+                <option>Amour/Romance</option>
+                <option>Amitié</option>
+                <option>Famille</option>
+                <option>Frère/Sœur</option>
+                <option>Conflit/Ennemis</option>
+                <option>Professionnel</option>
+                <option>Mentor/Élève</option>
+                <option>Autre</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="char-rel-intensite">Intensité</label>
+              <input type="range" id="char-rel-intensite" class="form-control" min="1" max="5" value="3">
+            </div>
+            <div class="form-group">
+              <label for="char-rel-statut">Statut</label>
+              <select id="char-rel-statut" class="form-control">
+                <option>Actuelle</option>
+                <option>Passée</option>
+                <option>Future</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="char-rel-description">Description</label>
+            <textarea id="char-rel-description" class="form-control" rows="2" placeholder="Décrivez la relation..."></textarea>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="toggleCharRelationForm()">Annuler</button>
+            <button class="btn btn-primary btn-sm" onclick="saveCharRelationInline()">Créer la relation</button>
+          </div>
+        </div>
+        <div id="char-relations-list" class="char-relations-list">
+          <div class="no-items"><div class="no-icon">🔗</div><p>Enregistrez d'abord le personnage pour gérer ses relations.</p></div>
+        </div>
+      </div>
+
+      <!-- ═══ Onglet Galerie ═══ -->
+      <div class="entity-tab-panel" id="char-tab-galerie">
+        <div class="entity-tab-header">
+          <h4>Galerie photos</h4>
+          <div>
+            <input type="file" id="char-gallery-input" accept="image/png, image/jpeg, image/webp" multiple onchange="addToCharGallery(this)" style="display:none">
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('char-gallery-input').click()">+ Ajouter des photos</button>
+          </div>
+        </div>
+        <div id="char-gallery-grid" class="gallery-grid">
+          <div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -915,51 +1205,72 @@
 </div>
 
 <!-- Lieu -->
-<div id="modal-location" class="modal-overlay hidden">
+<div id="modal-location" class="entity-page hidden">
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-location-title">Nouveau lieu</h3>
       <button class="modal-close" onclick="closeModal('modal-location')">✕</button>
     </div>
+    <!-- Onglets horizontaux -->
+    <div class="entity-tabs" id="loc-tabs">
+      <button class="entity-tab active" data-tab="loc-tab-identite" onclick="switchEntityTab('loc-tabs','loc-tab-identite')">📍 Identité</button>
+      <button class="entity-tab" data-tab="loc-tab-description" onclick="switchEntityTab('loc-tabs','loc-tab-description')">📝 Description</button>
+      <button class="entity-tab" data-tab="loc-tab-sensoriel" onclick="switchEntityTab('loc-tabs','loc-tab-sensoriel')">🎭 Détails sensoriels</button>
+      <button class="entity-tab" data-tab="loc-tab-galerie" onclick="switchEntityTab('loc-tabs','loc-tab-galerie')">🖼️ Galerie</button>
+    </div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="loc-nom">Nom *</label>
-          <input type="text" id="loc-nom" class="form-control" placeholder="Café de la Paix">
+      <!-- ═══ Onglet Identité ═══ -->
+      <div class="entity-tab-panel active" id="loc-tab-identite">
+        <div class="char-identity-layout">
+          <div class="char-identity-photo">
+            <div id="loc-photo-preview" class="char-photo-large"></div>
+            <input type="file" id="loc-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'loc-photo-preview', 'loc-photo-remove')" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost btn-sm" id="loc-photo-remove" style="display:none;margin-top:4px" onclick="removeLocationPhoto()">Supprimer la photo</button>
+          </div>
+          <div class="char-identity-fields">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="loc-nom">Nom *</label>
+                <input type="text" id="loc-nom" class="form-control" placeholder="Café de la Paix">
+              </div>
+              <div class="form-group">
+                <label for="loc-ville">Ville</label>
+                <input type="text" id="loc-ville" class="form-control" placeholder="Paris">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="loc-type">Type</label>
+              <select id="loc-type" class="form-control">
+                <option value="Résidence">Résidence</option>
+                <option value="Commerce">Commerce</option>
+                <option value="Extérieur">Extérieur</option>
+                <option value="Nature">Nature</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="loc-notes">Notes</label>
+              <textarea id="loc-notes" class="form-control" rows="4" placeholder="Atmosphère, détails importants..."></textarea>
+            </div>
+            <div id="loc-shared-wrap" class="form-group hidden">
+              <label style="display:flex;align-items:center;gap:8px">
+                <input type="checkbox" id="loc-shared">
+                Lieu partagé dans l'univers
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="loc-ville">Ville</label>
-          <input type="text" id="loc-ville" class="form-control" placeholder="Paris">
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="loc-type">Type</label>
-        <select id="loc-type" class="form-control">
-          <option value="Résidence">Résidence</option>
-          <option value="Commerce">Commerce</option>
-          <option value="Extérieur">Extérieur</option>
-          <option value="Nature">Nature</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="loc-notes">Notes</label>
-        <textarea id="loc-notes" class="form-control" rows="4" placeholder="Atmosphère, détails importants..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Photo</label>
-        <div id="loc-photo-preview" style="margin-bottom:8px"></div>
-        <input type="file" id="loc-photo" accept="image/png, image/jpeg, image/webp" onchange="previewImageFile(this, 'loc-photo-preview', 'loc-photo-remove')">
-        <button type="button" class="btn btn-ghost" id="loc-photo-remove" style="display:none;margin-top:8px" onclick="removeLocationPhoto()">Supprimer la photo</button>
       </div>
 
-      <details class="accordion" open>
-        <summary>Description</summary>
-        <div class="form-group"><label for="loc-desc-visuelle">Description visuelle</label><textarea id="loc-desc-visuelle" class="form-control" rows="3"></textarea></div>
+      <!-- ═══ Onglet Description ═══ -->
+      <div class="entity-tab-panel" id="loc-tab-description">
+        <div class="form-group"><label for="loc-desc-visuelle">Description visuelle</label><textarea id="loc-desc-visuelle" class="form-control" rows="4"></textarea></div>
         <div class="form-group"><label for="loc-ambiance">Ambiance générale</label><input id="loc-ambiance" class="form-control" type="text"></div>
-      </details>
+        <div class="form-group"><label for="loc-importance">Importance du lieu</label><textarea id="loc-importance" class="form-control" rows="2"></textarea></div>
+        <div class="form-group"><label for="loc-scenes">Scènes clés</label><textarea id="loc-scenes" class="form-control" rows="2"></textarea></div>
+      </div>
 
-      <details class="accordion">
-        <summary>Détails sensoriels</summary>
+      <!-- ═══ Onglet Détails sensoriels ═══ -->
+      <div class="entity-tab-panel" id="loc-tab-sensoriel">
         <div class="form-row">
           <div class="form-group"><label for="loc-odeurs">Odeurs</label><input id="loc-odeurs" class="form-control" type="text"></div>
           <div class="form-group"><label for="loc-sons">Sons</label><input id="loc-sons" class="form-control" type="text"></div>
@@ -968,13 +1279,21 @@
           <div class="form-group"><label for="loc-temperature">Température</label><input id="loc-temperature" class="form-control" type="text"></div>
           <div class="form-group"><label for="loc-textures">Textures</label><input id="loc-textures" class="form-control" type="text"></div>
         </div>
-      </details>
+      </div>
 
-      <details class="accordion">
-        <summary>Rôle dans l'histoire</summary>
-        <div class="form-group"><label for="loc-importance">Importance du lieu</label><textarea id="loc-importance" class="form-control" rows="2"></textarea></div>
-        <div class="form-group"><label for="loc-scenes">Scènes clés</label><textarea id="loc-scenes" class="form-control" rows="2"></textarea></div>
-      </details>
+      <!-- ═══ Onglet Galerie ═══ -->
+      <div class="entity-tab-panel" id="loc-tab-galerie">
+        <div class="entity-tab-header">
+          <h4>Galerie photos</h4>
+          <div>
+            <input type="file" id="loc-gallery-input" accept="image/png, image/jpeg, image/webp" multiple onchange="addToLocGallery(this)" style="display:none">
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('loc-gallery-input').click()">+ Ajouter des photos</button>
+          </div>
+        </div>
+        <div id="loc-gallery-grid" class="gallery-grid">
+          <div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-location')">Annuler</button>
@@ -1442,12 +1761,12 @@
       </div>
       <div class="cs-icon-grid" id="gs-icon-grid"></div>
       <div class="form-group">
-        <label for="gs-description">Description</label>
-        <textarea id="gs-description" class="form-control" rows="2" placeholder="Description de la section..."></textarea>
+        <label for="gsec-description">Description</label>
+        <textarea id="gsec-description" class="form-control" rows="2" placeholder="Description de la section..."></textarea>
       </div>
       <div class="form-group">
-        <label for="gs-tags">Tags (séparés par des virgules)</label>
-        <input type="text" id="gs-tags" class="form-control" placeholder="fantasy, objets, inventaire...">
+        <label for="gsec-tags">Tags (séparés par des virgules)</label>
+        <input type="text" id="gsec-tags" class="form-control" placeholder="fantasy, objets, inventaire...">
       </div>
       <div class="form-group" style="margin-top:12px">
         <label>Champs du formulaire</label>
@@ -1490,7 +1809,7 @@
 </div>
 
 <!-- Playlist modal -->
-<div id="modal-playlist" class="modal-overlay hidden">
+<div id="modal-playlist" class="entity-page hidden">
   <div class="modal modal-lg">
     <div class="modal-header">
       <h3 id="modal-playlist-title">Nouvelle playlist</h3>
@@ -1537,7 +1856,7 @@
 </div>
 
 <!-- Event modal -->
-<div id="modal-event" class="modal-overlay hidden">
+<div id="modal-event" class="entity-page hidden">
   <div class="modal modal-lg">
     <div class="modal-header">
       <h3 id="modal-event-title">Nouvel événement</h3>
@@ -1589,7 +1908,7 @@
 </div>
 
 <!-- Note modal -->
-<div id="modal-note" class="modal-overlay hidden">
+<div id="modal-note" class="entity-page hidden">
   <div class="modal modal-lg">
     <div class="modal-header">
       <h3 id="modal-note-title">Nouvelle note</h3>
@@ -1727,11 +2046,11 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         Retour
       </button>
-      <button class="editor-nav-btn" id="ce-nav-prev" onclick="navigateChapterEditor(-1)" title="Chapitre précédent">
+      <button class="editor-nav-btn" id="ce-nav-prev" onclick="navigateChapterEditor(-1)" title="Chapitre précédent" aria-label="Chapitre précédent">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <input type="text" id="ce-title" class="editor-title-input" placeholder="Titre du chapitre…">
-      <button class="editor-nav-btn" id="ce-nav-next" onclick="navigateChapterEditor(1)" title="Chapitre suivant">
+      <button class="editor-nav-btn" id="ce-nav-next" onclick="navigateChapterEditor(1)" title="Chapitre suivant" aria-label="Chapitre suivant">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>
@@ -1835,7 +2154,7 @@
 
       <!-- Formatting toolbar -->
       <div class="editor-toolbar">
-        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral">
+        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral" aria-label="Ouvrir ou fermer le panneau latéral">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="toolbar-sep"></div>
@@ -1847,17 +2166,17 @@
         <button class="editor-toolbar-btn" id="ce-btn-h2" onclick="editorSetHeading(2)" title="Titre 2">H2</button>
         <button class="editor-toolbar-btn" id="ce-btn-h3" onclick="editorSetHeading(3)" title="Titre 3">H3</button>
         <div class="toolbar-sep"></div>
-        <button class="editor-toolbar-btn" id="ce-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces">
+        <button class="editor-toolbar-btn" id="ce-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces" aria-label="Liste à puces">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
         </button>
-        <button class="editor-toolbar-btn" id="ce-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée">
+        <button class="editor-toolbar-btn" id="ce-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée" aria-label="Liste numérotée">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="toolbar-sep"></div>
-        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation">
+        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation" aria-label="Augmenter l'indentation">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="3 12 7 16 3 20"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation">
+        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation" aria-label="Diminuer l'indentation">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="11 12 7 16 11 20"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="15" y1="18" x2="21" y2="18"/></svg>
         </button>
       </div>
@@ -1969,7 +2288,7 @@
 
       <!-- Formatting toolbar -->
       <div class="editor-toolbar">
-        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral">
+        <button class="editor-sidebar-toggle" onclick="toggleEditorSidebar()" title="Panneau latéral" aria-label="Ouvrir ou fermer le panneau latéral">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="toolbar-sep"></div>
@@ -1981,17 +2300,17 @@
         <button class="editor-toolbar-btn" id="se-btn-h2" onclick="editorSetHeading(2)" title="Titre 2">H2</button>
         <button class="editor-toolbar-btn" id="se-btn-h3" onclick="editorSetHeading(3)" title="Titre 3">H3</button>
         <div class="toolbar-sep"></div>
-        <button class="editor-toolbar-btn" id="se-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces">
+        <button class="editor-toolbar-btn" id="se-btn-ul" onclick="editorSetList('bullet')" title="Liste à puces" aria-label="Liste à puces">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
         </button>
-        <button class="editor-toolbar-btn" id="se-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée">
+        <button class="editor-toolbar-btn" id="se-btn-ol" onclick="editorSetList('ordered')" title="Liste numérotée" aria-label="Liste numérotée">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="toolbar-sep"></div>
-        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation">
+        <button class="editor-toolbar-btn" onclick="editorIndent('in')"  title="Augmenter l'indentation" aria-label="Augmenter l'indentation">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="3 12 7 16 3 20"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation">
+        <button class="editor-toolbar-btn" onclick="editorIndent('out')" title="Diminuer l'indentation" aria-label="Diminuer l'indentation">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><polyline points="11 12 7 16 11 20"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="15" y1="18" x2="21" y2="18"/></svg>
         </button>
       </div>
@@ -2328,7 +2647,7 @@
 <div id="modal-spellcheck" class="modal-overlay hidden">
   <div class="modal modal-lg">
     <div class="modal-header">
-      <h3>Correcteur orthographique</h3>
+      <h3 id="spellcheck-title">Correcteur orthographique</h3>
       <button class="modal-close" onclick="closeModal('modal-spellcheck')">✕</button>
     </div>
     <div class="modal-body" style="max-height:65vh;overflow-y:auto">
@@ -2410,6 +2729,7 @@
 <script defer src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script defer src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <script defer src="app.js"></script>
 <script defer src="scenes.js"></script>
 <script defer src="editor.js"></script>
@@ -2421,7 +2741,8 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(
       registration => {
-        console.log('✓ Service Worker registered:', registration);
+        registration.update();
+        console.log('✓ Service Worker registered:', registration.scope);
       },
       error => {
         console.warn('✗ Service Worker registration failed:', error);
