@@ -17,9 +17,7 @@
   <link rel="stylesheet" href="features.css?v=20260306d">
   <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
   <link rel="manifest" href="manifest.json">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <!-- Lazy loading des scripts lourds : voir app.js pour le chargement à la demande -->
 </head>
 <body style="background:#12090D;color:#F8EBDD;">
   <div id="boot-fallback" style="position:fixed;inset:0;z-index:99999;background:#fffbe6;color:#111;padding:18px;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;display:block;overflow:auto">
@@ -576,7 +574,6 @@
             <!-- Actions avancées -->
             <div class="manuscrit-actions-grid" style="margin-top:16px">
               <button class="btn btn-secondary" onclick="exportEPUB()">Exporter EPUB</button>
-              <button class="btn btn-secondary" onclick="exportPDF()">Exporter PDF</button>
               <button class="btn btn-secondary" onclick="openEbookPreview()">Aperçu liseuse</button>
               <button class="btn btn-secondary" onclick="validateEPUB()">✅ Valider EPUB</button>
               <button class="btn btn-secondary" onclick="openPublicationChecklist()">Checklist pub.</button>
@@ -785,9 +782,7 @@
           <div class="settings-card">
             <h3>Export / Import</h3>
             <div class="settings-actions">
-              <button class="btn btn-secondary" onclick="exportProject()">⬇ JSON</button>
-              <button class="btn btn-secondary" onclick="exportMarkdown()">⬇ Markdown</button>
-              <button class="btn btn-secondary" onclick="exportCsv('personnages')">⬇ CSV (Persos)</button>
+              <!-- Exports désactivés pour éviter la confusion -->
               <label class="btn btn-secondary" style="cursor:pointer">
                 ⬆ Importer
                 <input type="file" id="import-file" accept=".json" onchange="importProject(event)" style="display:none">

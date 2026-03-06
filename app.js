@@ -1,3 +1,22 @@
+'// ========== LAZY LOADING SCRIPTS =============='
+function loadScriptOnce(src, globalCheck) {
+  return new Promise((resolve, reject) => {
+    if (globalCheck && window[globalCheck]) return resolve(window[globalCheck]);
+    if (document.querySelector(`script[src="${src}"]`)) {
+      // déjà en cours de chargement
+      const existing = document.querySelector(`script[src="${src}"]`);
+      existing.addEventListener('load', () => resolve(window[globalCheck]||true));
+      existing.addEventListener('error', () => reject(new Error('Erreur chargement script: '+src)));
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(window[globalCheck]||true);
+    s.onerror = () => reject(new Error('Erreur chargement script: '+src));
+    document.head.appendChild(s);
+  });
+}
 /* ============================================================
    WorldBuilder — app.js
    Vanilla JS, localStorage, no dependencies
