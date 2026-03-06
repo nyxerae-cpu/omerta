@@ -989,13 +989,35 @@ function importAppTransferBundle(event) {
         'Importer ce transfert ? ',
         'Les données locales actuelles seront remplacées sur cet appareil.',
         () => {
-          _clearTransferStorageScope();
-          Object.entries(parsed.localStorage).forEach(([k, v]) => {
-            if (typeof v === 'string') localStorage.setItem(k, v);
-          });
-          closeModal('modal-confirm');
-          showToast('Transfert importé, rechargement…', 'success');
-          setTimeout(() => location.reload(), 350);
+          const incomingEntries = Object.entries(parsed.localStorage)
+            .filter(([k, v]) => typeof k === 'string' && typeof v === 'string');
+
+          if (incomingEntries.length === 0) {
+            closeModal('modal-confirm');
+            showToast('Transfert vide ou invalide', 'error');
+            return;
+          }
+
+          // Transaction-like import: keep previous snapshot to rollback if a write fails.
+          const previousSnapshot = _getTransferStorageSnapshot();
+          try {
+            _clearTransferStorageScope();
+            incomingEntries.forEach(([k, v]) => localStorage.setItem(k, v));
+            closeModal('modal-confirm');
+            showToast(`Transfert importé (${incomingEntries.length} clés), rechargement…`, 'success');
+            setTimeout(() => location.reload(), 350);
+          } catch (writeErr) {
+            try {
+              _clearTransferStorageScope();
+              Object.entries(previousSnapshot).forEach(([k, v]) => {
+                if (typeof v === 'string') localStorage.setItem(k, v);
+              });
+            } catch (rollbackErr) {
+              console.error('Transfer rollback failed:', rollbackErr);
+            }
+            closeModal('modal-confirm');
+            showToast('Import échoué: données restaurées. ' + (writeErr?.message || 'Erreur stockage'), 'error');
+          }
         }
       );
     } catch (err) {
