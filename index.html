@@ -22,7 +22,7 @@
   <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 </head>
 <body>
-  <div id="boot-fallback" style="position:fixed;inset:0;z-index:99999;background:#fffbe6;color:#111;padding:18px;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;display:none;overflow:auto">
+  <div id="boot-fallback" style="position:fixed;inset:0;z-index:99999;background:#fffbe6;color:#111;padding:18px;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;display:block;overflow:auto">
     <h2 style="margin:0 0 10px 0;font-size:20px">Chargement de WorldBuilder...</h2>
     <p style="margin:0 0 8px 0">Si cet ecran reste visible, ouvre directement:</p>
     <p style="margin:0 0 12px 0"><a href="https://nyxerae-cpu.github.io/omerta/" style="color:#0a58ca">https://nyxerae-cpu.github.io/omerta/</a></p>
@@ -49,11 +49,19 @@
         if (fb) fb.style.display = 'none';
       }
 
-      window.addEventListener('load', function () {
-        setTimeout(function () {
-          if (!isAppVisible()) showFallback(); else hideFallback();
-        }, 3500);
+      function syncFallback() {
+        if (isAppVisible()) hideFallback(); else showFallback();
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(syncFallback, 200);
       });
+
+      window.addEventListener('load', function () {
+        setTimeout(syncFallback, 1200);
+      });
+
+      setTimeout(syncFallback, 3500);
 
       document.addEventListener('visibilitychange', function () {
         if (isAppVisible()) hideFallback();
