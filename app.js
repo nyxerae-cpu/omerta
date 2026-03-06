@@ -1133,8 +1133,12 @@ function navigateTo(section) {
       break;
   }
 
-  // On mobile, auto-close sidebar
-  if (window.innerWidth <= 768) closeSidebarMobile();
+  // Ensure mobile overlay never blocks section interactions after navigation.
+  if (window.innerWidth <= 768) {
+    closeSidebarMobile();
+  } else {
+    document.getElementById('sidebar-overlay')?.classList.remove('visible');
+  }
 }
 
 function _parseHashRoute() {
@@ -1241,6 +1245,7 @@ function toggleSidebar() {
     sidebar.classList.toggle('mobile-open', !isOpen);
     overlay.classList.toggle('visible', !isOpen);
   } else {
+    document.getElementById('sidebar-overlay')?.classList.remove('visible');
     // Desktop: collapse/expand
     state.sidebarCollapsed = !state.sidebarCollapsed;
     document.getElementById('sidebar').classList.toggle('collapsed', state.sidebarCollapsed);
@@ -2425,6 +2430,7 @@ function deleteRelationConfirm(relId, source = 'project') {
 function renderChapters() {
   const id   = state.currentProjectId;
   let   list = getProjectData(id, 'chapitres').sort((a, b) => a.numero - b.numero);
+  const playlistsById = new Map((getProjectData(id, 'playlists') || []).map(pl => [pl.id, pl]));
   const el   = document.getElementById('chapitres-list');
   const empty = document.getElementById('no-chapitres');
 
@@ -2437,6 +2443,10 @@ function renderChapters() {
 
   const STATUS_CLS = { 'Terminé': 'badge-termine', 'En cours': 'badge-en-cours', 'À réviser': 'badge-brouillon', 'Brouillon': 'badge-brouillon' };
   el.innerHTML = list.map(c => {
+    const linkedMusic = c.musicPlaylistId ? playlistsById.get(c.musicPlaylistId) : null;
+    const musicLine = linkedMusic
+      ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">🎵 Musique : ${esc(linkedMusic.nom || 'Playlist')} ${linkedMusic.url ? `<button class="btn btn-spotify btn-sm" onclick='openSpotify(${JSON.stringify(linkedMusic.url)})'>▶️ Écouter sur Spotify</button>` : ''}</div>`
+      : '';
     const wc = c.contenu ? wordCount(c.contenu) : 0;
     const statusBadge = c.statut
       ? `<span class="badge ${STATUS_CLS[c.statut] || 'badge-brouillon'}" style="margin-bottom:0">${esc(c.statut)}</span>`
@@ -2453,6 +2463,7 @@ function renderChapters() {
       <div class="chapter-body">
         <div class="chapter-title">${esc(c.titre)}</div>
         ${c.pov ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:3px">POV : ${esc((getCharactersForProject(state.currentProjectId,true).find(p=>p.id===c.pov)||{}).prenom || '')}</div>` : ''}
+        ${musicLine}
         ${(statusBadge || wcBadge || estimateBadge) ? `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">${statusBadge}${wcBadge}${estimateBadge}</div>` : ''}
         ${c.resume ? `<div class="chapter-notes" style="margin-top:3px"><em>${esc(c.resume)}</em></div>` : ''}
         ${c.notes ? `<div class="chapter-notes" style="margin-top:3px">${esc(c.notes)}</div>` : ''}
@@ -2481,6 +2492,7 @@ function openChapterModal(chapId = null) {
   document.getElementById('chap-resume').value = '';
   document.getElementById('chap-word-estimate').value = '';
   document.getElementById('chap-pov').innerHTML = ''; // will populate below
+  document.getElementById('chap-music').innerHTML = '';
   document.getElementById('chap-statut').value = 'Brouillon';
 
   // build POV options from characters
@@ -2488,6 +2500,11 @@ function openChapterModal(chapId = null) {
   const povSel = document.getElementById('chap-pov');
   povSel.innerHTML = '<option value="">— Aucun —</option>' +
     chars.map(c => { const name=[c.prenom,c.nom].filter(Boolean).join(' '); return `<option value="${c.id}">${esc(name)}</option>`; }).join('');
+
+  const musicSel = document.getElementById('chap-music');
+  const playlists = getProjectData(state.currentProjectId, 'playlists') || [];
+  musicSel.innerHTML = '<option value="">— Aucune —</option>' +
+    playlists.map(pl => `<option value="${pl.id}">${esc(pl.nom || 'Playlist sans nom')}</option>`).join('');
 
   if (chapId) {
     const c = getProjectData(state.currentProjectId, 'chapitres').find(x => x.id === chapId);
@@ -2498,6 +2515,7 @@ function openChapterModal(chapId = null) {
       document.getElementById('chap-resume').value = c.resume || '';
       document.getElementById('chap-word-estimate').value = c.wordEstimate || '';
       document.getElementById('chap-pov').value = c.pov || '';
+      document.getElementById('chap-music').value = c.musicPlaylistId || '';
       document.getElementById('chap-statut').value = c.statut || 'Brouillon';
       if (document.getElementById('chap-heure-debut')) document.getElementById('chap-heure-debut').value = c.heureDebut || '';
       if (document.getElementById('chap-heure-fin'))   document.getElementById('chap-heure-fin').value   = c.heureFin   || '';
@@ -2528,6 +2546,7 @@ function saveChapter() {
     resume: document.getElementById('chap-resume') ? document.getElementById('chap-resume').value.trim() : '',
     wordEstimate: parseInt(document.getElementById('chap-word-estimate').value,10) || 0,
     pov: document.getElementById('chap-pov') ? document.getElementById('chap-pov').value : '',
+    musicPlaylistId: document.getElementById('chap-music') ? document.getElementById('chap-music').value : '',
     statut: document.getElementById('chap-statut') ? document.getElementById('chap-statut').value : '',
     heureDebut: document.getElementById('chap-heure-debut')?.value || '',
     heureFin:   document.getElementById('chap-heure-fin')?.value  || '',
@@ -3027,11 +3046,11 @@ function migrateProjectSchema(projectId) {
   });
   if (lChanged) saveProjectData(projectId, 'lieux', locs);
 
-  // chapitres: add résumé and wordEstimate defaults
+  // chapitres: add chapter metadata defaults
   let ch = getProjectData(projectId, 'chapitres') || [];
   let cChanged = false;
   ch = ch.map(c => {
-    const nc = Object.assign({ resume: '', wordEstimate: 0, pov: c && c.pov ? c.pov : '', statut: c && c.statut ? c.statut : '' }, c || {});
+    const nc = Object.assign({ resume: '', wordEstimate: 0, pov: c && c.pov ? c.pov : '', musicPlaylistId: '', statut: c && c.statut ? c.statut : '' }, c || {});
     if (JSON.stringify(nc) !== JSON.stringify(c)) cChanged = true;
     return nc;
   });
@@ -4070,13 +4089,14 @@ function previewManuscript() {
 
 function openExportModal() {
   document.getElementById('export-form').reset();
-  document.querySelectorAll('#modal-export-ebook input, #modal-export-ebook select, #modal-export-ebook textarea').forEach(el => {
-    el.disabled = false;
-    if ('readOnly' in el) el.readOnly = false;
-  });
+  unlockModalControls('modal-export-ebook');
   openModal('modal-export-ebook');
   setTimeout(() => {
-    document.getElementById('export-title')?.focus();
+    const title = document.getElementById('export-title');
+    if (title) {
+      title.focus();
+      title.select();
+    }
   }, 30);
 }
 
@@ -4204,6 +4224,7 @@ function assembleAndDownloadEpub(meta, opts) {
   let spine=[];
   let navPoints=[];
   let chapCounter=1;
+  const bookId = meta.isbn || ('urn:uuid:' + uid());
   if (opts.titlePage) {
       const titleHtml=`<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Title</title><link href="styles.css" rel="stylesheet"/></head><body><h1>${esc(meta.title)}</h1><p>par ${esc(meta.author)}</p></body></html>`;
       oebps.file('title.xhtml',titleHtml);
@@ -4249,38 +4270,79 @@ function assembleAndDownloadEpub(meta, opts) {
          chapCounter++;
       });
   });
-  if (opts.toc) {
-      const ncx=`<?xml version="1.0" encoding="utf-8"?>\n<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="${meta.isbn || 'urn:uuid:'+uid()}"/><meta name="dtb:depth" content="1"/><meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head><docTitle><text>${esc(meta.title)}</text></docTitle><navMap>${navPoints.join('')}</navMap></ncx>`;
-      oebps.file('toc.ncx', ncx);
-      manifest.push(`<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>`);
+    const ncx=`<?xml version="1.0" encoding="utf-8"?>\n<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="${bookId}"/><meta name="dtb:depth" content="1"/><meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head><docTitle><text>${esc(meta.title)}</text></docTitle><navMap>${navPoints.join('')}</navMap></ncx>`;
+    oebps.file('toc.ncx', ncx);
+    manifest.push('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>');
+
+    if (opts.toc) {
       // also html table of contents
       const tocHtml=`<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Table des matières</title><link href="styles.css" rel="stylesheet"/></head><body><h1>Table des matières</h1><nav><ol>${tocLinks.join('')}</ol></nav></body></html>`;
       oebps.file('toc.xhtml', tocHtml);
       manifest.push(`<item id="tocx" href="toc.xhtml" media-type="application/xhtml+xml"/>`);
+      spine.unshift('<itemref idref="tocx"/>');
   }
-  const packageXml=`<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="BookId"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${esc(meta.title)}</dc:title><dc:language>${meta.language||'fr'}</dc:language><dc:identifier id="BookId">${meta.isbn||'urn:uuid:'+uid()}</dc:identifier><dc:creator>${esc(meta.author)}</dc:creator><dc:date>${meta.date||new Date().toISOString().split('T')[0]}</dc:date></metadata><manifest>${manifest.join('')}</manifest><spine toc="ncx">${spine.join('')}</spine></package>`;
-  oebps.file('content.opf', packageXml);
-  if (opts.coverFile) {
+    const finalizeEpub = (coverConfig = null) => {
+      if (coverConfig) {
+        oebps.file(coverConfig.filename, coverConfig.base64Data, { base64: true });
+        const coverXhtml = `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Couverture</title><link href="styles.css" rel="stylesheet"/></head><body style="margin:0;padding:0;text-align:center;"><img src="${coverConfig.filename}" alt="Couverture" style="max-width:100%;height:auto;"/></body></html>`;
+        oebps.file('cover.xhtml', coverXhtml);
+        manifest.push(`<item id="cover-image" href="${coverConfig.filename}" media-type="${coverConfig.mimeType}"/>`);
+        manifest.push(`<item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>`);
+        spine.unshift('<itemref idref="cover-xhtml"/>');
+      }
+
+      const metadataExtras = coverConfig ? '<meta name="cover" content="cover-image"/>' : '';
+      const packageXml=`<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="BookId"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${esc(meta.title)}</dc:title><dc:language>${meta.language||'fr'}</dc:language><dc:identifier id="BookId">${bookId}</dc:identifier><dc:creator>${esc(meta.author)}</dc:creator><dc:date>${meta.date||new Date().toISOString().split('T')[0]}</dc:date>${metadataExtras}</metadata><manifest>${manifest.join('')}</manifest><spine toc="ncx">${spine.join('')}</spine></package>`;
+      oebps.file('content.opf', packageXml);
+      const safeName = String(meta.title || 'book').trim().replace(/[\\/:*?"<>|]+/g, '_') || 'book';
+      zip.generateAsync({ type:'blob', compression:'DEFLATE', mimeType:'application/epub+zip' })
+        .then(blob => downloadBlob(blob, `${safeName}.epub`));
+    };
+
+    if (opts.coverFile) {
       const reader = new FileReader();
       reader.onload = e => {
-          const data = e.target.result.split(',')[1];
-          oebps.file('cover.jpg', data, {base64:true});
-          manifest.push(`<item id="cover" href="cover.jpg" media-type="image/jpeg"/>`);
-          zip.generateAsync({type:'blob'}).then(blob=>downloadBlob(blob,`${meta.title||'book'}.epub`));
+        const result = String(e?.target?.result || '');
+        const parts = result.split(',');
+        const header = parts[0] || '';
+        const base64Data = parts[1] || '';
+        const mimeMatch = header.match(/^data:([^;]+);base64$/i);
+        const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : 'image/jpeg';
+        const ext = mimeType === 'image/png' ? 'png' : (mimeType === 'image/webp' ? 'webp' : 'jpg');
+        if (!base64Data) {
+          finalizeEpub(null);
+          return;
+        }
+        finalizeEpub({
+          filename: `cover.${ext}`,
+          mimeType,
+          base64Data,
+        });
       };
       reader.readAsDataURL(opts.coverFile);
-  } else {
-      zip.generateAsync({type:'blob'}).then(blob=>downloadBlob(blob,`${meta.title||'book'}.epub`));
-  }
+    } else {
+      finalizeEpub(null);
+    }
 }
 
 function downloadBlob(blob,filename) {
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=filename;
+  const finalName = String(filename || 'download').endsWith('.epub')
+    ? String(filename || 'download')
+    : `${String(filename || 'download')}.epub`;
+  const epubBlob = blob.type === 'application/epub+zip'
+    ? blob
+    : new Blob([blob], { type: 'application/epub+zip' });
+  const objectUrl = URL.createObjectURL(epubBlob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = finalName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  // Revoke asynchronously so slower devices finish the handoff first.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
 }
 
 // override navigateTo to render manuscript
@@ -4295,11 +4357,30 @@ function downloadBlob(blob,filename) {
 // ============================================================
 // MODAL HELPERS
 // ============================================================
+function unlockModalControls(id) {
+  const root = document.getElementById(id);
+  if (!root) return;
+  root.querySelectorAll('input, select, textarea').forEach(el => {
+    el.disabled = false;
+    if ('readOnly' in el) el.readOnly = false;
+    el.removeAttribute('disabled');
+    el.removeAttribute('readonly');
+    el.removeAttribute('aria-disabled');
+    el.style.pointerEvents = 'auto';
+  });
+}
+
 function openModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
+  unlockModalControls(id);
   el.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  // Ensure the first editable control can receive keyboard input immediately.
+  requestAnimationFrame(() => {
+    const focusable = el.querySelector('input:not([type="hidden"]), textarea, select, button, [tabindex]:not([tabindex="-1"])');
+    if (focusable && typeof focusable.focus === 'function') focusable.focus();
+  });
 }
 
 function openEntityPage(id) {
@@ -4512,6 +4593,14 @@ document.addEventListener('DOMContentLoaded', () => {
     _applyHashRoute();
   }
   window.addEventListener('hashchange', _applyHashRoute);
+
+  // If viewport switches from mobile to desktop, clear the mobile overlay.
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+      document.getElementById('sidebar-overlay')?.classList.remove('visible');
+      document.getElementById('sidebar')?.classList.remove('mobile-open');
+    }
+  });
 });
 
 // ============================================================
