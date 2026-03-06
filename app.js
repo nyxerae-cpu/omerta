@@ -1324,6 +1324,11 @@ function renderDashboard() {
 
   const project = getProjects().find(p => p.id === id);
   const descEl  = document.getElementById('dashboard-desc');
+  const isMafiaTheme = document.body.classList.contains('theme-mafia');
+  const chartRelColors = isMafiaTheme
+    ? ['#A6782F', '#7D1734', '#C9A15A', '#8F6625', '#A44963', '#B24A3A', '#8B6B58']
+    : ['#2196F3', '#E91E63', '#FF9800', '#9C27B0', '#4CAF50', '#F44336', 'gray'];
+  const chartStatusColor = isMafiaTheme ? '#A6782F' : '#4CAF50';
   if (project && project.description) {
     descEl.innerHTML = `
       <div class="dashboard-desc-label">Description du projet</div>
@@ -1340,12 +1345,13 @@ function renderDashboard() {
   const relCtx = document.getElementById('chart-rel-types').getContext('2d');
   if (!relTypesChart) {
     relTypesChart = new Chart(relCtx, {
-      type:'pie', data:{labels:Object.keys(relTypes), datasets:[{data:Object.values(relTypes), backgroundColor:['#2196F3','#E91E63','#FF9800','#9C27B0','#4CAF50','#F44336','gray']}]},
+      type:'pie', data:{labels:Object.keys(relTypes), datasets:[{data:Object.values(relTypes), backgroundColor:chartRelColors}]},
       options:{ animation: chartAnimation }
     });
   } else {
     relTypesChart.data.labels = Object.keys(relTypes);
     relTypesChart.data.datasets[0].data = Object.values(relTypes);
+    relTypesChart.data.datasets[0].backgroundColor = chartRelColors;
     relTypesChart.update(perfState.lowPower ? 'none' : undefined);
   }
   // chap status bar
@@ -1354,12 +1360,13 @@ function renderDashboard() {
   const chapCtx = document.getElementById('chart-chap-statut').getContext('2d');
   if (!chapStatusChart) {
     chapStatusChart = new Chart(chapCtx, {
-      type:'bar', data:{labels:Object.keys(chapStatus), datasets:[{data:Object.values(chapStatus), backgroundColor:'#4CAF50'}]},
+      type:'bar', data:{labels:Object.keys(chapStatus), datasets:[{data:Object.values(chapStatus), backgroundColor:chartStatusColor}]},
       options:{ animation: chartAnimation }
     });
   } else {
     chapStatusChart.data.labels = Object.keys(chapStatus);
     chapStatusChart.data.datasets[0].data = Object.values(chapStatus);
+    chapStatusChart.data.datasets[0].backgroundColor = chartStatusColor;
     chapStatusChart.update(perfState.lowPower ? 'none' : undefined);
   }
   // pers by role

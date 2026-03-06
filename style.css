@@ -78,6 +78,17 @@ body {
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; }
 
+/* Keep native radio/checkbox controls aligned with active theme color */
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
+body.theme-mafia input[type="radio"],
+body.theme-mafia input[type="checkbox"] {
+  accent-color: #A6782F;
+}
+
 .hidden { display: none !important; }
 
 /* ============================================================
