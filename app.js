@@ -1012,7 +1012,6 @@ function openProject(projectId, initialSection = 'dashboard', skipHash = false) 
   applyAppearance(prefs);
   checkAutoBackup();
   checkBackupAge(projectId);
-  initSeasonalTheme(projectId);
   // render custom sections in sidebar
   if (typeof renderCustomSectionsSidebar === 'function') renderCustomSectionsSidebar();
 }
@@ -3200,12 +3199,6 @@ function applyAppearance(prefs) {
   // keep only premium visual direction
   document.body.classList.remove('theme-premium', 'theme-roman', 'theme-saas');
   document.body.classList.add('theme-premium');
-
-  // Keep seasonal theme as a pure color overlay on top of the active visual style.
-  if (prefs && prefs.seasonalTheme) {
-    const season = prefs.seasonalOverride || detectDominantSeason(state.currentProjectId);
-    if (season) applySeasonalTheme(season);
-  }
 }
 
 function saveAppearanceSettings() {
@@ -5334,93 +5327,6 @@ function checkBackupAge(projectId) {
   const days = Math.floor((Date.now() - new Date(prefs.lastBackup).getTime()) / 86400000);
   if (days >= 7) {
     setTimeout(() => showToast(`💾 Backup il y a ${days} jours — pensez à sauvegarder !`), 2000);
-  }
-}
-
-// ============================================================
-// SEASONAL THEMES
-// ============================================================
-const SEASONAL_PALETTES = {
-  printemps: { primary: '#E91E8C', dark: '#C2185B', light: '#FCE4EC', name: 'Printemps 🌸' },
-  ete:       { primary: '#FF8C00', dark: '#E65100', light: '#FFF3E0', name: 'Été ☀️' },
-  automne:   { primary: '#8B4513', dark: '#6D2C0A', light: '#FBE9E7', name: 'Automne 🍂' },
-  hiver:     { primary: '#1565C0', dark: '#0D47A1', light: '#E3F2FD', name: 'Hiver ❄️' },
-};
-
-function detectDominantSeason(projectId) {
-  const events = getProjectData(projectId, 'events');
-  if (!events.length) return null;
-  const months = { printemps: 0, ete: 0, automne: 0, hiver: 0 };
-  events.forEach(ev => {
-    if (!ev.date) return;
-    const m = new Date(ev.date).getMonth(); // 0-11
-    if (m >= 2 && m <= 4)  months.printemps++;
-    else if (m >= 5 && m <= 7) months.ete++;
-    else if (m >= 8 && m <= 10) months.automne++;
-    else months.hiver++;
-  });
-  return Object.entries(months).sort((a, b) => b[1] - a[1])[0][0];
-}
-
-function applySeasonalTheme(season) {
-  const palette = SEASONAL_PALETTES[season];
-  if (!palette) { removeSeasonalTheme(); return; }
-  const root = document.documentElement;
-  root.style.setProperty('--primary',       palette.primary);
-  root.style.setProperty('--primary-dark',  palette.dark);
-  root.style.setProperty('--primary-light', palette.light);
-  root.style.setProperty('--primary-text',  palette.dark);
-  document.body.dataset.season = season;
-}
-
-function setSeasonalTheme(season) {
-  const id = state.currentProjectId;
-  if (!id) return;
-  const prefs = getProjectPrefs(id) || {};
-  prefs.seasonalTheme = true;
-  prefs.seasonalOverride = season;
-  saveProjectPrefs(id, prefs);
-  applySeasonalTheme(season);
-
-  const seasonalToggle = document.getElementById('settings-seasonal');
-  if (seasonalToggle) seasonalToggle.checked = true;
-  showToast(`Palette saisonniere: ${SEASONAL_PALETTES[season]?.name || season}`);
-}
-
-function removeSeasonalTheme() {
-  const root = document.documentElement;
-  root.style.removeProperty('--primary');
-  root.style.removeProperty('--primary-dark');
-  root.style.removeProperty('--primary-light');
-  root.style.removeProperty('--primary-text');
-  delete document.body.dataset.season;
-}
-
-function toggleSeasonalTheme(on, manual = null) {
-  const id = state.currentProjectId;
-  if (!id) return;
-  const prefs = getProjectPrefs(id) || {};
-  prefs.seasonalTheme = on;
-  if (on && manual) prefs.seasonalOverride = manual;
-  else if (!on) delete prefs.seasonalOverride;
-  saveProjectPrefs(id, prefs);
-
-  if (on) {
-    const season = manual || detectDominantSeason(id);
-    if (season) applySeasonalTheme(season);
-  } else {
-    removeSeasonalTheme();
-    // Restore base appearance colors and style.
-    applyAppearance(prefs);
-  }
-  showToast(on ? `Thème saisonnier activé` : 'Thème saisonnier désactivé');
-}
-
-function initSeasonalTheme(projectId) {
-  const prefs = getProjectPrefs(projectId);
-  if (prefs.seasonalTheme) {
-    const season = prefs.seasonalOverride || detectDominantSeason(projectId);
-    if (season) applySeasonalTheme(season);
   }
 }
 

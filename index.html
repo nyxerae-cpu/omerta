@@ -568,19 +568,6 @@
               <button class="btn btn-secondary" style="margin-left:8px" onclick="createAdvancedBackup(state.currentProjectId).then(()=>showToast('Sauvegarde créée','success'))">Sauvegarder maintenant</button>
             </div>
           </div>
-          <div class="settings-card">
-            <h3>Thèmes saisonniers</h3>
-            <div class="form-group">
-              <label><input type="checkbox" id="settings-seasonal" onchange="toggleSeasonalTheme(this.checked, true)"> Activer le thème saisonnier automatique</label>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-              <button class="btn btn-secondary btn-sm" onclick="setSeasonalTheme('printemps')">Printemps</button>
-              <button class="btn btn-secondary btn-sm" onclick="setSeasonalTheme('ete')">Été</button>
-              <button class="btn btn-secondary btn-sm" onclick="setSeasonalTheme('automne')">Automne</button>
-              <button class="btn btn-secondary btn-sm" onclick="setSeasonalTheme('hiver')">Hiver</button>
-              <button class="btn btn-ghost btn-sm" onclick="removeSeasonalTheme()">✕ Désactiver</button>
-            </div>
-          </div>
           <!-- Sync card -->
           <div class="settings-card">
             <h3>☁️ Synchronisation multi-appareils</h3>
