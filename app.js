@@ -1156,6 +1156,12 @@ async function refreshSupabaseStatusLabel() {
   }
 }
 
+function setSupabaseStatusLabel(message) {
+  const statusEl = document.getElementById('hub-supa-status');
+  if (!statusEl) return;
+  statusEl.textContent = `Statut: ${message}`;
+}
+
 async function supabaseSignUpFromHub() {
   saveSupabaseConfigFromHub();
   const email = (document.getElementById('hub-supa-email')?.value || '').trim();
@@ -1196,6 +1202,7 @@ async function supabasePushNow() {
   if (!client) { showToast('Supabase non configuré', 'error'); return false; }
   const user = await _getSupabaseUser();
   if (!user) { showToast('Connecte-toi à Supabase', 'error'); return false; }
+  setSupabaseStatusLabel('push en cours...');
   const payload = _buildTransferPayload();
   const { error } = await client.from('user_sync_data').upsert({
     user_id: user.id,
@@ -1203,9 +1210,11 @@ async function supabasePushNow() {
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   if (error) {
+    setSupabaseStatusLabel('erreur push');
     showToast('Push Supabase: ' + error.message, 'error');
     return false;
   }
+  setSupabaseStatusLabel('push ok');
   showToast('Sync Supabase envoyée', 'success');
   return true;
 }
@@ -1216,25 +1225,34 @@ async function supabasePullNow() {
   const user = await _getSupabaseUser();
   if (!user) { showToast('Connecte-toi à Supabase', 'error'); return false; }
 
+  setSupabaseStatusLabel('pull en cours...');
+  showToast('Pull Supabase en cours...', 'success');
+
   const { data, error } = await client
     .from('user_sync_data')
     .select('payload,updated_at')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) {
+    setSupabaseStatusLabel('erreur pull');
     showToast('Pull Supabase: ' + error.message, 'error');
     return false;
   }
   if (!data || !data.payload) {
+    setSupabaseStatusLabel('aucune donnée cloud');
     showToast('Aucune donnée cloud pour ce compte', 'error');
     return false;
   }
   const entries = _extractTransferEntries(data.payload);
   if (!entries || !entries.length) {
+    setSupabaseStatusLabel('payload cloud invalide');
     showToast('Payload cloud invalide', 'error');
     return false;
   }
-  return _applyTransferEntriesTransaction(entries, { reloadAfter: true });
+  setSupabaseStatusLabel(`données cloud trouvées (${entries.length} clés)`);
+  const ok = _applyTransferEntriesTransaction(entries, { reloadAfter: true });
+  if (ok) setSupabaseStatusLabel('pull ok, rechargement...');
+  return ok;
 }
 
 function scheduleSupabaseAutoSync() {
