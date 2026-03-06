@@ -347,6 +347,13 @@
           </span>
           <span class="nav-label">Timeline</span>
         </button>
+        <!-- Structure -->
+        <button class="nav-item" data-section="structure" onclick="navigateTo('structure')">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="18" r="1.5"/></svg>
+          </span>
+          <span class="nav-label">Structure</span>
+        </button>
         <!-- Citations -->
         <button class="nav-item" data-section="citations" onclick="navigateTo('citations')">
           <span class="nav-icon">
@@ -647,10 +654,48 @@
           <h2>Timeline</h2>
           <button class="btn btn-primary" onclick="openEventModal()">+ Ajouter événement</button>
         </div>
+        <div id="timeline-filters" class="form-row" style="gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;align-items:center">
+            <label><input type="checkbox" id="timeline-scope-universe" onchange="renderTimeline()"> Mode série (tous les livres)</label>
+          </div>
+          <select id="timeline-filter-project" class="form-control hidden" onchange="renderTimeline()">
+            <option value="">Tous les livres</option>
+          </select>
+          <select id="timeline-filter-type" class="form-control" onchange="renderTimeline()">
+            <option value="">Tous types</option>
+            <option value="Rencontre">Rencontre</option>
+            <option value="Naissance">Naissance / Mort</option>
+            <option value="Tournant">Tournant narratif</option>
+            <option value="Découverte">Découverte</option>
+            <option value="Conflit">Conflit</option>
+            <option value="Résolution">Résolution</option>
+            <option value="Autre">Autre</option>
+          </select>
+          <select id="timeline-zoom" class="form-control" onchange="renderTimeline()">
+            <option value="annee">Année</option>
+            <option value="mois">Mois</option>
+            <option value="jour">Jour</option>
+          </select>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label><input type="checkbox" id="filter-has-personnage" onchange="renderTimeline()"> Personnages</label>
+            <label><input type="checkbox" id="filter-has-lieu" onchange="renderTimeline()"> Lieux</label>
+            <label><input type="checkbox" id="filter-has-chapitre" onchange="renderTimeline()"> Chapitres</label>
+          </div>
+          <input type="text" id="timeline-filter-personnage" class="form-control" placeholder="Filtrer par nom" oninput="debouncedRenderTimeline()">
+        </div>
+        <div id="timeline-smart-insights" class="timeline-smart-panel hidden"></div>
+        <div id="timeline-list"></div>
+      </section>
+
+      <!-- Structure -->
+      <section id="section-structure" class="content-section hidden">
+        <div class="section-header">
+          <h2>Structure du roman</h2>
+        </div>
         <div id="timeline-novel-flow" class="timeline-flow-panel">
           <div class="timeline-flow-head">
-            <h3>Structure du roman</h3>
-            <small>1) Créer timeline chapitres 2) Lier scènes 3) Écrire chapitre</small>
+            <h3>Plan des chapitres</h3>
+            <small>1) Créer la structure 2) Lier scènes 3) Écrire chapitre</small>
           </div>
           <div class="form-row" style="gap:10px;align-items:end;flex-wrap:wrap">
             <div class="form-group" style="min-width:220px">
@@ -685,37 +730,6 @@
           </div>
           <div id="timeline-novel-flow-list" class="timeline-flow-list"></div>
         </div>
-        <div id="timeline-filters" class="form-row" style="gap:12px;margin-bottom:12px;flex-wrap:wrap">
-          <div style="display:flex;gap:10px;align-items:center">
-            <label><input type="checkbox" id="timeline-scope-universe" onchange="renderTimeline()"> Mode série (tous les livres)</label>
-          </div>
-          <select id="timeline-filter-project" class="form-control hidden" onchange="renderTimeline()">
-            <option value="">Tous les livres</option>
-          </select>
-          <select id="timeline-filter-type" class="form-control" onchange="renderTimeline()">
-            <option value="">Tous types</option>
-            <option value="Rencontre">Rencontre</option>
-            <option value="Naissance">Naissance / Mort</option>
-            <option value="Tournant">Tournant narratif</option>
-            <option value="Découverte">Découverte</option>
-            <option value="Conflit">Conflit</option>
-            <option value="Résolution">Résolution</option>
-            <option value="Autre">Autre</option>
-          </select>
-          <select id="timeline-zoom" class="form-control" onchange="renderTimeline()">
-            <option value="annee">Année</option>
-            <option value="mois">Mois</option>
-            <option value="jour">Jour</option>
-          </select>
-          <div style="display:flex;gap:8px;align-items:center">
-            <label><input type="checkbox" id="filter-has-personnage" onchange="renderTimeline()"> Personnages</label>
-            <label><input type="checkbox" id="filter-has-lieu" onchange="renderTimeline()"> Lieux</label>
-            <label><input type="checkbox" id="filter-has-chapitre" onchange="renderTimeline()"> Chapitres</label>
-          </div>
-          <input type="text" id="timeline-filter-personnage" class="form-control" placeholder="Filtrer par nom" oninput="debouncedRenderTimeline()">
-        </div>
-        <div id="timeline-smart-insights" class="timeline-smart-panel hidden"></div>
-        <div id="timeline-list"></div>
       </section>
 
 

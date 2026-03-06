@@ -1751,6 +1751,9 @@ function navigateTo(section) {
     case 'manuscrit':    renderManuscript(); renderManuscriptStats(); break;
     case 'playlists':    renderPlaylists();   break;
     case 'timeline':     renderTimeline();    break;
+    case 'structure':
+      if (typeof renderTimelineNovelPlanner === 'function') renderTimelineNovelPlanner();
+      break;
     case 'journal':
       if (typeof renderFeatureSection === 'function') renderFeatureSection(section);
       break;
@@ -5338,6 +5341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       '1': 'dashboard', '2': 'personnages', '3': 'lieux',
       '4': 'chapitres', '5': 'scenes',     '6': 'manuscrit',
       '7': 'playlists', '8': 'relations',  '9': 'timeline',
+      '0': 'structure',
     };
     if (ctrl && sectionMap[e.key]) {
       e.preventDefault();
