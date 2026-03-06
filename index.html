@@ -30,9 +30,28 @@
     <p style="margin:0 0 8px 0">Si cet ecran reste visible, ouvre directement:</p>
     <p style="margin:0 0 12px 0"><a href="https://nyxerae-cpu.github.io/omerta/" style="color:#0a58ca">https://nyxerae-cpu.github.io/omerta/</a></p>
     <p style="margin:0">Puis fais un refresh complet: <strong>Ctrl+Shift+R</strong>.</p>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" onclick="window.__wbForceShowHome && window.__wbForceShowHome()" style="padding:8px 12px;border:1px solid #c5b26a;border-radius:8px;background:#fff;color:#111;cursor:pointer">Forcer l'affichage de l'app</button>
+      <button type="button" onclick="location.reload()" style="padding:8px 12px;border:1px solid #c5b26a;border-radius:8px;background:#fff;color:#111;cursor:pointer">Recharger</button>
+    </div>
+    <pre id="boot-fallback-errors" style="margin-top:12px;padding:10px;border-radius:8px;background:#fff;border:1px solid #e6dba8;white-space:pre-wrap;word-break:break-word;max-width:960px">Diagnostic: en attente...</pre>
   </div>
   <script>
     (function bootSafetyNet(){
+      var runtimeErrors = [];
+
+      function setDiag(text) {
+        var box = document.getElementById('boot-fallback-errors');
+        if (!box) return;
+        box.textContent = text;
+      }
+
+      window.addEventListener('error', function (e) {
+        var msg = (e && e.message) ? e.message : 'Erreur JS inconnue';
+        runtimeErrors.push(msg);
+        setDiag('Erreur detectee: ' + runtimeErrors.slice(-3).join(' | '));
+      });
+
       function isAppVisible() {
         var ids = ['auth-page', 'home-page', 'project-page'];
         for (var i = 0; i < ids.length; i++) {
@@ -53,8 +72,23 @@
       }
 
       function syncFallback() {
-        if (isAppVisible()) hideFallback(); else showFallback();
+        if (isAppVisible()) {
+          hideFallback();
+          return;
+        }
+        showFallback();
+        setDiag(runtimeErrors.length ? ('Erreur detectee: ' + runtimeErrors.slice(-3).join(' | ')) : 'App non visible: utilise le bouton "Forcer l\'affichage de l\'app".');
       }
+
+      window.__wbForceShowHome = function () {
+        var auth = document.getElementById('auth-page');
+        var home = document.getElementById('home-page');
+        var project = document.getElementById('project-page');
+        if (auth) auth.classList.add('hidden');
+        if (project) project.classList.add('hidden');
+        if (home) home.classList.remove('hidden');
+        hideFallback();
+      };
 
       document.addEventListener('DOMContentLoaded', function () {
         setTimeout(syncFallback, 200);
