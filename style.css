@@ -1,3 +1,50 @@
+/* Onglet Export EPUB dédié */
+.exportepub-container {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin: 32px auto;
+  max-width: 480px;
+  border: 1px solid var(--gray-200);
+}
+.exportepub-container .form-group {
+  margin-bottom: 16px;
+}
+.exportepub-container .form-row {
+  display: flex;
+  gap: 12px;
+}
+.exportepub-container input,
+.exportepub-container select,
+.exportepub-container textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: var(--gray-100);
+  color: var(--gray-800);
+  margin-top: 4px;
+  margin-bottom: 0;
+  box-sizing: border-box;
+}
+.exportepub-container input[type="file"] {
+  padding: 0;
+  background: none;
+  border: none;
+}
+.exportepub-container label {
+  font-size: 13px;
+  color: var(--gray-700);
+  font-weight: 500;
+}
+.exportepub-container button {
+  margin-top: 10px;
+}
+.exportepub-container img {
+  margin-top: 8px;
+}
 /* ============================================================
    CSS Variables
    ============================================================ */

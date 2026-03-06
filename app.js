@@ -1,3 +1,16 @@
+// Fonction pour l'onglet Export EPUB (connecte le bouton à la logique d'export)
+function generateEpubFromExportTab() {
+  try {
+    if (typeof exportEPUB === 'function') {
+      exportEPUB();
+    } else {
+      showToast("Export EPUB non disponible", 'error');
+    }
+  } catch (e) {
+    showToast("Erreur lors de l'export EPUB : " + (e && e.message ? e.message : e), 'error');
+    console.error(e);
+  }
+}
 '// ========== LAZY LOADING SCRIPTS =============='
 function loadScriptOnce(src, globalCheck) {
   return new Promise((resolve, reject) => {
