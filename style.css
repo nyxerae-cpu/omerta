@@ -2913,6 +2913,19 @@ body.theme-mafia .note-type-badge.lieu {
   background: color-mix(in srgb, var(--white) 60%, var(--gray-100));
 }
 
+/* ============================================================
+   SAFETY NET — prevent white/blank rendering in production
+   ============================================================ */
+html,
+body {
+  background-color: var(--bg, #0f1115) !important;
+  color: var(--text, #e6eef6) !important;
+}
+
+body.theme-mafia:not(.dark-mode) {
+  --text: var(--gray-800);
+}
+
 .device-switch-btn.active {
   background: var(--white);
   color: var(--gray-800);
