@@ -222,6 +222,7 @@ function _initQuill(wrapperId, htmlContent) {
 
   // Typographic auto-formatting
   _initTypoFormatting(quill);
+  _initPasteMarkdownItalics(quill);
 
   quill.on('selection-change', () => {
     if (editorState.quill !== quill) return;
@@ -230,6 +231,60 @@ function _initQuill(wrapperId, htmlContent) {
 
   editorState.quill = quill;
   setTimeout(() => quill.focus(), 120);
+}
+
+function _splitMarkdownItalicSegments(text) {
+  const segments = [];
+  const re = /\*\*([^*\n][^*]*?)\*\*|\*([^*\n][^*]*?)\*/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, match.index), italic: false });
+    }
+    const italicText = match[1] || match[2] || '';
+    segments.push({ text: italicText, italic: true });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), italic: false });
+  }
+
+  return segments;
+}
+
+function _initPasteMarkdownItalics(quill) {
+  quill.root.addEventListener('paste', (e) => {
+    const text = e.clipboardData && e.clipboardData.getData
+      ? e.clipboardData.getData('text/plain')
+      : '';
+
+    if (!text || !/(\*\*[^*\n][^*]*?\*\*|\*[^*\n][^*]*?\*)/.test(text)) return;
+
+    e.preventDefault();
+
+    const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+    if (range.length) {
+      quill.deleteText(range.index, range.length, 'user');
+    }
+
+    const segments = _splitMarkdownItalicSegments(text);
+    let index = range.index;
+
+    segments.forEach((seg) => {
+      if (!seg.text) return;
+      if (seg.italic) {
+        quill.insertText(index, seg.text, { italic: true }, 'user');
+      } else {
+        quill.insertText(index, seg.text, 'user');
+      }
+      index += seg.text.length;
+    });
+
+    quill.setSelection(index, 0, 'silent');
+  });
 }
 
 // ============================================================

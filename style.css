@@ -2754,3 +2754,179 @@ body.theme-mafia .note-type-badge.lieu {
   color: #F7DCE3;
 }
 
+/* ============================================================
+   DEVICE MODE SWITCH (phone / desktop)
+   ============================================================ */
+.device-switch {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  background: var(--gray-100);
+  padding: 2px;
+  gap: 2px;
+}
+
+.device-switch-btn {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gray-700);
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+.device-switch-btn:hover {
+  background: color-mix(in srgb, var(--white) 60%, var(--gray-100));
+}
+
+.device-switch-btn.active {
+  background: var(--white);
+  color: var(--gray-800);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Force phone layout even on wide screens */
+body.device-mode-phone .home-header {
+  padding: 16px 20px;
+}
+
+body.device-mode-phone .home-content {
+  padding: 20px 16px;
+}
+
+body.device-mode-phone .projects-grid {
+  grid-template-columns: 1fr;
+}
+
+body.device-mode-phone .sidebar {
+  transform: translateX(-100%);
+  width: var(--sidebar-w);
+  z-index: 50;
+}
+
+body.device-mode-phone .sidebar.mobile-open {
+  transform: translateX(0);
+}
+
+body.device-mode-phone .main-content {
+  margin-left: 0;
+  padding: 20px 16px;
+}
+
+body.device-mode-phone .cards-grid,
+body.device-mode-phone .stats-grid,
+body.device-mode-phone .form-row {
+  grid-template-columns: 1fr;
+}
+
+body.device-mode-phone .project-header {
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+body.device-mode-phone .header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+body.device-mode-phone .header-right {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+body.device-mode-phone .header-right .btn {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+body.device-mode-phone .btn {
+  min-height: 44px;
+}
+
+body.device-mode-phone #global-search-container {
+  display: none;
+}
+
+body.device-mode-phone input.form-control,
+body.device-mode-phone textarea.form-control,
+body.device-mode-phone select.form-control {
+  font-size: 16px;
+}
+
+/* Force desktop layout even on narrow screens */
+body.device-mode-desktop .home-header {
+  padding: 20px 32px;
+}
+
+body.device-mode-desktop .home-content {
+  padding: 32px;
+}
+
+body.device-mode-desktop .projects-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+body.device-mode-desktop .sidebar {
+  transform: translateX(0) !important;
+  width: var(--sidebar-w) !important;
+  z-index: 40;
+}
+
+body.device-mode-desktop .sidebar-overlay {
+  display: none !important;
+}
+
+body.device-mode-desktop .main-content {
+  margin-left: var(--sidebar-w);
+  padding: 28px 24px;
+}
+
+body.device-mode-desktop .project-header {
+  flex-wrap: nowrap;
+  padding: 0 20px;
+  gap: 0;
+}
+
+body.device-mode-desktop .header-right {
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+body.device-mode-desktop .header-right .btn {
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+body.device-mode-desktop #global-search-container {
+  display: block !important;
+  width: auto;
+  margin-bottom: 0;
+}
+
+body.device-mode-desktop #global-search {
+  width: 240px !important;
+}
+
+body.device-mode-desktop .btn {
+  min-height: auto;
+}
+
+body.device-mode-desktop input.form-control,
+body.device-mode-desktop textarea.form-control,
+body.device-mode-desktop select.form-control {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .device-switch-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+}
+
