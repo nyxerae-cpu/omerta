@@ -748,6 +748,7 @@ document.addEventListener('DOMContentLoaded', initPwaInstall);
 document.addEventListener('DOMContentLoaded', initCordovaBridge);
 document.addEventListener('DOMContentLoaded', initAppLifecycle);
 document.addEventListener('DOMContentLoaded', initRuntimeGuards);
+document.addEventListener('DOMContentLoaded', applySavedDeviceModePreference);
 
 // simple debounce helper
 function debounce(fn, delay) {
@@ -760,6 +761,42 @@ function debounce(fn, delay) {
 
 // debounced wrappers will be assigned after functions are defined
 let debouncedRenderTimeline, debouncedHomeSearch;
+
+// ---------------------------------------------------------
+// Device mode preference (phone / desktop)
+const DEVICE_MODE_PREF_KEY = 'wb_device_mode_pref';
+
+function _applyDeviceModeToDom(mode) {
+  document.body.classList.remove('device-mode-phone', 'device-mode-desktop');
+  if (mode === 'phone') document.body.classList.add('device-mode-phone');
+  if (mode === 'desktop') document.body.classList.add('device-mode-desktop');
+
+  document.querySelectorAll('.device-switch-btn[data-device-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.deviceMode === mode);
+  });
+}
+
+function setDeviceModePreference(mode) {
+  const normalized = mode === 'phone' ? 'phone' : 'desktop';
+  try {
+    localStorage.setItem(DEVICE_MODE_PREF_KEY, normalized);
+  } catch (err) {
+    console.warn('Unable to persist device mode preference:', err);
+  }
+  _applyDeviceModeToDom(normalized);
+  showToast(`Affichage ${normalized === 'phone' ? 'téléphone' : 'ordi'} activé`, 'success');
+}
+
+function applySavedDeviceModePreference() {
+  let saved = '';
+  try {
+    saved = localStorage.getItem(DEVICE_MODE_PREF_KEY) || '';
+  } catch (err) {
+    console.warn('Unable to read device mode preference:', err);
+  }
+  const mode = saved === 'phone' ? 'phone' : (saved === 'desktop' ? 'desktop' : '');
+  if (mode) _applyDeviceModeToDom(mode);
+}
 
 
 function fmtDate(iso) {
