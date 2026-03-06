@@ -16,6 +16,14 @@ const scenesViewState = {
   continuousChapId: null,
 };
 
+const SCENES_CHAPTER_RENDER_STEP = 80;
+
+function expandScenesChapterBlocks() {
+  const current = window._scenesChapterRenderLimit || SCENES_CHAPTER_RENDER_STEP;
+  window._scenesChapterRenderLimit = current + SCENES_CHAPTER_RENDER_STEP;
+  renderScenes();
+}
+
 // ============================================================
 // GLOBAL LIBRARY STORAGE
 // ============================================================
@@ -69,9 +77,20 @@ function getGlobalSceneUsage(globalSceneId) {
   let count = 0;
   projects.forEach(p => {
     const scenes = getProjectData(p.id, 'scenes');
-    if (scenes.some(s => s.sceneGlobaleId === globalSceneId)) count++;
+    if (scenes.some(s => s.sceneGlobaleId === globalSceneId || s.sourceSceneGlobaleId === globalSceneId)) count++;
   });
   return count;
+}
+
+function getUsedGlobalSceneIdsForProject(projectId) {
+  if (!projectId) return new Set();
+  const scenes = getProjectData(projectId, 'scenes') || [];
+  const used = new Set();
+  scenes.forEach(s => {
+    if (s.sceneGlobaleId) used.add(s.sceneGlobaleId);
+    if (s.sourceSceneGlobaleId) used.add(s.sourceSceneGlobaleId);
+  });
+  return used;
 }
 
 // ============================================================
@@ -252,6 +271,11 @@ function deleteGlobalSceneConfirm(sceneId) {
 // Copy global scene to current project directly (from library card)
 function copyGlobalToProject(globalSceneId) {
   if (!state.currentProjectId) { showToast('Ouvrez d\'abord un projet', 'error'); return; }
+  const used = getUsedGlobalSceneIdsForProject(state.currentProjectId);
+  if (used.has(globalSceneId)) {
+    showToast('Cette scène de bibliothèque est déjà utilisée dans ce projet', 'error');
+    return;
+  }
   const s = getGlobalScenes().find(x => x.id === globalSceneId);
   if (!s) return;
 
@@ -266,6 +290,7 @@ function copyGlobalToProject(globalSceneId) {
     notes:             '',
     typeScene:         'copie',
     sceneGlobaleId:    null,
+    sourceSceneGlobaleId: globalSceneId,
     variablesRemplacees: {},
     assigneChapitreId: null,
     ordreInChapitre:   0,
@@ -287,6 +312,7 @@ function renderScenes() {
   const id       = state.currentProjectId;
   const scenes   = getProjectData(id, 'scenes');
   const chapters = getProjectData(id, 'chapitres').sort((a, b) => a.numero - b.numero);
+  const sceneById = new Map(scenes.map(s => [s.id, s]));
 
   // Render stats bar
   _renderScenesStats(scenes, chapters);
@@ -310,11 +336,15 @@ function renderScenes() {
     return;
   }
 
-  byChapter.innerHTML = chapters.map(chap => {
+  const safeLimit = window._scenesChapterRenderLimit || SCENES_CHAPTER_RENDER_STEP;
+  const visibleChapters = chapters.slice(0, safeLimit);
+  const hiddenCount = Math.max(0, chapters.length - visibleChapters.length);
+
+  byChapter.innerHTML = visibleChapters.map(chap => {
     const chapSceneIds = chap.scenesIds || [];
     // Ordered scenes for this chapter
     const chapScenes = chapSceneIds
-      .map(sid => scenes.find(s => s.id === sid))
+      .map(sid => sceneById.get(sid))
       .filter(Boolean);
 
     return `
@@ -336,7 +366,12 @@ function renderScenes() {
           ${chapScenes.map((s, idx) => renderSceneCard(s, chap.id, chapters, idx, chapScenes.length)).join('')}
         </div>
       </div>`;
-  }).join('');
+  }).join('') + (hiddenCount > 0
+    ? `<div style="padding:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+         <small style="color:var(--gray-500)">${hiddenCount} chapitre${hiddenCount > 1 ? 's' : ''} masque${hiddenCount > 1 ? 's' : ''} pour eviter une surcharge memoire.</small>
+         <button class="btn btn-secondary btn-sm" onclick="expandScenesChapterBlocks()">Afficher plus</button>
+       </div>`
+    : '');
 }
 
 function renderSceneCard(s, chapitreId, chapters, idx = -1, total = 0) {
@@ -712,14 +747,22 @@ function moveSceneInChapter(sceneId, chapitreId, direction) {
 function openImportSceneModal() {
   if (!state.currentProjectId) { showToast('Ouvrez un projet d\'abord', 'error'); return; }
 
-  const scenes = getGlobalScenes();
+  const usedIds = getUsedGlobalSceneIdsForProject(state.currentProjectId);
+  const scenes = getGlobalScenes().filter(s => !usedIds.has(s.id));
   const sel    = document.getElementById('import-scene-select');
   sel.innerHTML = '<option value="">— Choisir une scène —</option>' +
     scenes.map(s => `<option value="${s.id}">${esc(s.titre)} (${esc(s.categorie)})</option>`).join('');
 
+  const submitBtn = document.getElementById('import-scene-submit');
+  if (submitBtn) submitBtn.disabled = scenes.length === 0;
+
   document.querySelector('input[name="import-type"][value="copie"]').checked = true;
   document.getElementById('import-variables-section').classList.add('hidden');
   document.getElementById('import-variables-fields').innerHTML = '';
+
+  if (scenes.length === 0) {
+    showToast('Toutes les scènes de la bibliothèque sont déjà utilisées dans ce projet', 'error');
+  }
 
   openModal('modal-import-scene');
 }
@@ -749,6 +792,12 @@ function importGlobalScene() {
   const sceneId = document.getElementById('import-scene-select').value;
   if (!sceneId) { showToast('Choisissez une scène', 'error'); return; }
 
+  const usedIds = getUsedGlobalSceneIdsForProject(state.currentProjectId);
+  if (usedIds.has(sceneId)) {
+    showToast('Cette scène de bibliothèque est déjà utilisée dans ce projet', 'error');
+    return;
+  }
+
   const globalScene = getGlobalScenes().find(x => x.id === sceneId);
   if (!globalScene) return;
 
@@ -775,6 +824,7 @@ function importGlobalScene() {
     notes:              globalScene.descriptionUsage || '',
     typeScene:          typeImport,        // 'copie' | 'reference'
     sceneGlobaleId:     typeImport === 'reference' ? sceneId : null,
+    sourceSceneGlobaleId: sceneId,
     variablesRemplacees: replacements,
     assigneChapitreId:  null,
     ordreInChapitre:    0,

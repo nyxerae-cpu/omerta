@@ -3057,10 +3057,19 @@ function deleteRelationConfirm(relId, source = 'project') {
 // ============================================================
 // CHAPTERS
 // ============================================================
+const CHAPTERS_RENDER_STEP = 120;
+
+function expandChaptersRender() {
+  const current = window._chaptersRenderLimit || CHAPTERS_RENDER_STEP;
+  window._chaptersRenderLimit = current + CHAPTERS_RENDER_STEP;
+  renderChapters();
+}
+
 function renderChapters() {
   const id   = state.currentProjectId;
   let   list = getProjectData(id, 'chapitres').sort((a, b) => a.numero - b.numero);
   const playlistsById = new Map((getProjectData(id, 'playlists') || []).map(pl => [pl.id, pl]));
+  const charactersById = new Map((getCharactersForProject(state.currentProjectId, true) || []).map(p => [p.id, p]));
   const el   = document.getElementById('chapitres-list');
   const empty = document.getElementById('no-chapitres');
 
@@ -3071,8 +3080,12 @@ function renderChapters() {
   }
   empty.classList.add('hidden');
 
+  const safeLimit = window._chaptersRenderLimit || CHAPTERS_RENDER_STEP;
+  const visible = list.slice(0, safeLimit);
+  const hiddenCount = Math.max(0, list.length - visible.length);
+
   const STATUS_CLS = { 'Terminé': 'badge-termine', 'En cours': 'badge-en-cours', 'À réviser': 'badge-brouillon', 'Brouillon': 'badge-brouillon' };
-  el.innerHTML = list.map(c => {
+  el.innerHTML = visible.map(c => {
     const linkedMusic = c.musicPlaylistId ? playlistsById.get(c.musicPlaylistId) : null;
     const musicLine = linkedMusic
       ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">🎵 Musique : ${esc(linkedMusic.nom || 'Playlist')} ${linkedMusic.url ? `<button class="btn btn-spotify btn-sm" onclick='openSpotify(${JSON.stringify(linkedMusic.url)})'>▶️ Écouter sur Spotify</button>` : ''}</div>`
@@ -3087,12 +3100,13 @@ function renderChapters() {
     const estimateBadge = c.wordEstimate && c.wordEstimate > 0
       ? `<span style="font-size:12px;color:var(--gray-400)">${c.wordEstimate.toLocaleString('fr-FR')} mots estimés</span>`
       : '';
+    const povName = c.pov ? [charactersById.get(c.pov)?.prenom, charactersById.get(c.pov)?.nom].filter(Boolean).join(' ') : '';
     return `
     <div class="chapter-item">
       <div class="chapter-num">${c.numero}</div>
       <div class="chapter-body">
         <div class="chapter-title">${esc(c.titre)}</div>
-        ${c.pov ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:3px">POV : ${esc((getCharactersForProject(state.currentProjectId,true).find(p=>p.id===c.pov)||{}).prenom || '')}</div>` : ''}
+        ${povName ? `<div class="chapter-meta" style="font-size:12px;color:var(--gray-500);margin-top:3px">POV : ${esc(povName)}</div>` : ''}
         ${musicLine}
         ${(statusBadge || wcBadge || estimateBadge) ? `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">${statusBadge}${wcBadge}${estimateBadge}</div>` : ''}
         ${c.resume ? `<div class="chapter-notes" style="margin-top:3px"><em>${esc(c.resume)}</em></div>` : ''}
@@ -3107,7 +3121,12 @@ function renderChapters() {
         <button class="btn-icon" onclick="deleteChapterConfirm('${c.id}')" title="Supprimer">🗑️</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + (hiddenCount > 0
+    ? `<div style="padding:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+         <small style="color:var(--gray-500)">${hiddenCount} chapitre${hiddenCount > 1 ? 's' : ''} non affiche${hiddenCount > 1 ? 's' : ''} pour eviter la surcharge memoire.</small>
+         <button class="btn btn-secondary btn-sm" onclick="expandChaptersRender()">Afficher plus</button>
+       </div>`
+    : '');
 }
 
 function openChapterModal(chapId = null) {
@@ -4182,18 +4201,18 @@ function renderTimeline() {
     });
   }
 
-  // sort by approximated date
-  events.sort((a,b)=>{
-    const da = parseDateForSort(a.date);
-    const db = parseDateForSort(b.date);
-    return da - db;
-  });
+  // sort by manual order first, then approximated date
+  events.sort(compareTimelineEvents);
 
   // cache for pagination
   window._timelineCache = events;
   window._timelineOffset = 0;
   const container = document.getElementById('timeline-list');
   container.innerHTML = '';
+
+  if (typeof renderTimelineNovelPlanner === 'function') {
+    renderTimelineNovelPlanner();
+  }
 
   renderTimelineSmartInsights(events, {
     currentProjectId: id,
@@ -4202,6 +4221,15 @@ function renderTimeline() {
   });
 
   appendTimelineChunk(zoom);
+}
+
+function compareTimelineEvents(a, b) {
+  const oa = Number.isFinite(a?.ordreTimeline) ? a.ordreTimeline : Number.MAX_SAFE_INTEGER;
+  const ob = Number.isFinite(b?.ordreTimeline) ? b.ordreTimeline : Number.MAX_SAFE_INTEGER;
+  if (oa !== ob) return oa - ob;
+  const da = parseDateForSort(a?.date);
+  const db = parseDateForSort(b?.date);
+  return da - db;
 }
 
 function renderTimelineSmartInsights(events, options = {}) {
@@ -4482,19 +4510,131 @@ function renderEventRow(e) {
   const assoc = (e.associated||[]).map(a => getAssociatedNameForProject(a, e._projectId || state.currentProjectId)).filter(Boolean).join(', ');
   const imp = e.importance ? ` <span class="event-importance">${'★'.repeat(e.importance)}</span>` : '';
   const projectBadge = e._projectName ? `<small style="color:var(--gray-500)">📘 ${esc(e._projectName)}</small>` : '';
-  return `<div class="timeline-event" tabindex="0" onclick="openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')" onkeydown="if(event.key==='Enter')openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">
+  const projectId = e._projectId || state.currentProjectId;
+  const allowDrag = !_isTimelineUniverseMode() && projectId === state.currentProjectId;
+  const dragAttrs = allowDrag
+    ? `draggable="true" data-event-id="${e.id}" data-project-id="${projectId}" ondragstart="onTimelineEventDragStart(event, '${projectId}', '${e.id}')" ondragover="onTimelineEventDragOver(event, '${projectId}', '${e.id}')" ondragleave="onTimelineEventDragLeave(event)" ondrop="onTimelineEventDrop(event, '${projectId}', '${e.id}')" ondragend="onTimelineEventDragEnd(event)"`
+    : '';
+  const grip = allowDrag ? '<span class="timeline-drag-grip" title="Glisser pour reorganiser">⠿</span>' : '';
+  return `<div class="timeline-event" ${dragAttrs} tabindex="0" onclick="onTimelineEventClick(event, '${projectId}', '${e.id}')" onkeydown="if(event.key==='Enter')openTimelineEvent('${projectId}','${e.id}')">
       <div class="event-icon">${icon}</div>
       <div class="event-body">
-        <div><strong>${esc(e.titre)}</strong>${imp} <span class="event-date">${esc(e.date||'')}</span></div>
+        <div>${grip}<strong>${esc(e.titre)}</strong>${imp} <span class="event-date">${esc(e.date||'')}</span></div>
         <div>${esc(e.desc||'')}</div>
         ${projectBadge}
         ${assoc? `<div><small>Lié à : ${esc(assoc)}</small></div>` : ''}
       </div>
       <div class="event-actions">
-        <button class="btn-icon" onclick="event.stopPropagation();openTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">✏️</button>
-        <button class="btn-icon" onclick="event.stopPropagation();deleteTimelineEvent('${e._projectId || state.currentProjectId}','${e.id}')">🗑️</button>
+        ${allowDrag ? `<button class="btn-icon" title="Monter" onclick="event.stopPropagation();moveTimelineEvent('${projectId}','${e.id}','up')">▲</button>` : ''}
+        ${allowDrag ? `<button class="btn-icon" title="Descendre" onclick="event.stopPropagation();moveTimelineEvent('${projectId}','${e.id}','down')">▼</button>` : ''}
+        <button class="btn-icon" onclick="event.stopPropagation();openTimelineEvent('${projectId}','${e.id}')">✏️</button>
+        <button class="btn-icon" onclick="event.stopPropagation();deleteTimelineEvent('${projectId}','${e.id}')">🗑️</button>
       </div>
     </div>`;
+}
+
+let _timelineDraggedEventId = null;
+let _timelineDraggedProjectId = null;
+let _timelineEventDragging = false;
+
+function _isTimelineUniverseMode() {
+  return !!document.getElementById('timeline-scope-universe')?.checked;
+}
+
+function onTimelineEventClick(event, projectId, eventId) {
+  if (_timelineEventDragging) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  openTimelineEvent(projectId, eventId);
+}
+
+function onTimelineEventDragStart(event, projectId, eventId) {
+  if (_isTimelineUniverseMode() || projectId !== state.currentProjectId) {
+    event.preventDefault();
+    return;
+  }
+  _timelineEventDragging = true;
+  _timelineDraggedProjectId = projectId;
+  _timelineDraggedEventId = eventId;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', eventId);
+  event.currentTarget?.classList.add('dragging');
+}
+
+function onTimelineEventDragOver(event, projectId, targetEventId) {
+  if (!_timelineDraggedEventId || _timelineDraggedProjectId !== projectId || targetEventId === _timelineDraggedEventId) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget?.classList.add('drag-over');
+}
+
+function onTimelineEventDragLeave(event) {
+  event.currentTarget?.classList.remove('drag-over');
+}
+
+function onTimelineEventDragEnd(event) {
+  event.currentTarget?.classList.remove('drag-over');
+  event.currentTarget?.classList.remove('dragging');
+  _timelineDraggedEventId = null;
+  _timelineDraggedProjectId = null;
+  setTimeout(() => { _timelineEventDragging = false; }, 0);
+  document.querySelectorAll('.timeline-event.drag-over,.timeline-event.dragging')
+    .forEach(el => el.classList.remove('drag-over', 'dragging'));
+}
+
+function onTimelineEventDrop(event, projectId, targetEventId) {
+  event.preventDefault();
+  event.currentTarget?.classList.remove('drag-over');
+  if (!_timelineDraggedEventId || _timelineDraggedProjectId !== projectId || !targetEventId || targetEventId === _timelineDraggedEventId) return;
+
+  const events = getProjectData(projectId, 'events') || [];
+  const ids = events.slice().sort(compareTimelineEvents).map(e => e.id);
+  const from = ids.indexOf(_timelineDraggedEventId);
+  const to = ids.indexOf(targetEventId);
+  if (from < 0 || to < 0) return;
+
+  const [moved] = ids.splice(from, 1);
+  ids.splice(to, 0, moved);
+
+  const pos = new Map(ids.map((id, idx) => [id, idx + 1]));
+  const now = new Date().toISOString();
+  events.forEach(ev => {
+    ev.ordreTimeline = pos.get(ev.id) || Number.MAX_SAFE_INTEGER;
+    ev.updatedAt = now;
+  });
+
+  saveProjectData(projectId, 'events', events);
+  touchProject(projectId);
+  renderTimeline();
+}
+
+function moveTimelineEvent(projectId, eventId, direction) {
+  if (!projectId || projectId !== state.currentProjectId) return;
+  const events = getProjectData(projectId, 'events') || [];
+  const ordered = events.slice().sort(compareTimelineEvents);
+  const idx = ordered.findIndex(e => e.id === eventId);
+  if (idx < 0) return;
+
+  if (direction === 'up' && idx > 0) {
+    [ordered[idx - 1], ordered[idx]] = [ordered[idx], ordered[idx - 1]];
+  } else if (direction === 'down' && idx < ordered.length - 1) {
+    [ordered[idx + 1], ordered[idx]] = [ordered[idx], ordered[idx + 1]];
+  } else {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const pos = new Map(ordered.map((ev, i) => [ev.id, i + 1]));
+  events.forEach(ev => {
+    ev.ordreTimeline = pos.get(ev.id) || Number.MAX_SAFE_INTEGER;
+    ev.updatedAt = now;
+  });
+
+  saveProjectData(projectId, 'events', events);
+  touchProject(projectId);
+  renderTimeline();
 }
 
 function openTimelineEvent(projectId, eventId) {

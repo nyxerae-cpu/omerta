@@ -355,6 +355,351 @@ function renderChapterTimeline() {
     </div>`;
 }
 
+const TIMELINE_PLANNER_RENDER_STEP = 120;
+const TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS = 600;
+let _timelineDraggedChapterId = null;
+let _timelineDragScrollRaf = null;
+let _timelineDragScrollDir = 0;
+
+function expandTimelinePlannerRows() {
+  const current = window._timelinePlannerRenderLimit || TIMELINE_PLANNER_RENDER_STEP;
+  window._timelinePlannerRenderLimit = current + TIMELINE_PLANNER_RENDER_STEP;
+  renderTimelineNovelPlanner();
+}
+
+function onTimelineStructureModeChange() {
+  const mode = document.getElementById('timeline-structure-mode')?.value || 'numbers';
+  const numbers = document.getElementById('timeline-structure-numbers');
+  const dates = document.getElementById('timeline-structure-dates');
+  if (!numbers || !dates) return;
+  numbers.classList.toggle('hidden', mode !== 'numbers');
+  dates.classList.toggle('hidden', mode !== 'dates');
+}
+
+function _chapterLinkedSceneCount(chapterId) {
+  if (!state.currentProjectId) return 0;
+  const scenes = getProjectData(state.currentProjectId, 'scenes') || [];
+  return scenes.filter(s => s.assigneChapitreId === chapterId).length;
+}
+
+function openTimelineChapterScenes(chapterId) {
+  if (!chapterId) return;
+  navigateTo('scenes');
+  // Open scene modal pre-linked to the selected chapter.
+  setTimeout(() => openLocalSceneModal(null, chapterId), 80);
+}
+
+function openTimelineChapterWriter(chapterId) {
+  if (!chapterId) return;
+  openChapterEditor(chapterId);
+}
+
+function renderTimelineNovelPlanner() {
+  const root = document.getElementById('timeline-novel-flow');
+  const listEl = document.getElementById('timeline-novel-flow-list');
+  if (!root || !listEl) return;
+
+  onTimelineStructureModeChange();
+
+  const id = state.currentProjectId;
+  if (!id) {
+    listEl.innerHTML = '<div class="timeline-flow-empty">Ouvrez un projet pour structurer la timeline du roman.</div>';
+    return;
+  }
+
+  const chapters = (getProjectData(id, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  if (!chapters.length) {
+    listEl.innerHTML = '<div class="timeline-flow-empty">Aucun chapitre pour le moment. Générez la structure ci-dessus.</div>';
+    return;
+  }
+
+  const safeLimit = window._timelinePlannerRenderLimit || TIMELINE_PLANNER_RENDER_STEP;
+  const visible = chapters.slice(0, safeLimit);
+  const hiddenCount = Math.max(0, chapters.length - visible.length);
+  const linkedSceneCounts = new Map();
+  const scenes = getProjectData(id, 'scenes') || [];
+  scenes.forEach(s => {
+    if (!s.assigneChapitreId) return;
+    linkedSceneCounts.set(s.assigneChapitreId, (linkedSceneCounts.get(s.assigneChapitreId) || 0) + 1);
+  });
+
+  listEl.innerHTML = visible.map(ch => {
+    const sceneCount = linkedSceneCounts.get(ch.id) || 0;
+    const dateBadge = ch.timelineDate ? `<span class="timeline-flow-date">${esc(ch.timelineDate)}</span>` : '';
+    return `
+      <div class="timeline-flow-row"
+           draggable="true"
+           data-chapter-id="${ch.id}"
+           ondragstart="onTimelinePlannerDragStart(event, '${ch.id}')"
+           ondragover="onTimelinePlannerDragOver(event)"
+           ondragleave="onTimelinePlannerDragLeave(event)"
+           ondrop="onTimelinePlannerDrop(event, '${ch.id}')"
+           ondragend="onTimelinePlannerDragEnd(event)">
+        <div class="timeline-flow-main">
+          <span class="timeline-flow-grip" title="Glisser pour reorganiser">⠿</span>
+          <strong>Chapitre ${ch.numero || '?'}</strong>
+          <span>${esc(ch.titre || `Chapitre ${ch.numero || '?'}`)}</span>
+          ${dateBadge}
+          <small>${sceneCount} scene${sceneCount !== 1 ? 's' : ''} liee${sceneCount !== 1 ? 's' : ''}</small>
+        </div>
+        <div class="timeline-flow-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openTimelineChapterScenes('${ch.id}')">Lier des scenes</button>
+          <button class="btn btn-primary btn-sm" onclick="openTimelineChapterWriter('${ch.id}')">Ecrire chapitre</button>
+        </div>
+      </div>`;
+  }).join('') + (hiddenCount > 0
+    ? `<div class="timeline-flow-empty" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+         <span>${hiddenCount} chapitre${hiddenCount > 1 ? 's' : ''} non affiche${hiddenCount > 1 ? 's' : ''} pour eviter une surcharge memoire.</span>
+         <button class="btn btn-secondary btn-sm" onclick="expandTimelinePlannerRows()">Afficher plus</button>
+       </div>`
+    : '');
+}
+
+function onTimelinePlannerDragStart(event, chapterId) {
+  _timelineDraggedChapterId = chapterId;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', chapterId);
+  const row = event.currentTarget;
+  if (row && row.classList) row.classList.add('dragging');
+}
+
+function _setTimelineDragAutoScrollDirection(event) {
+  const list = document.getElementById('timeline-novel-flow-list');
+  if (!list) return;
+  const rect = list.getBoundingClientRect();
+  const edge = 56;
+  let dir = 0;
+  if (event.clientY < rect.top + edge) dir = -1;
+  else if (event.clientY > rect.bottom - edge) dir = 1;
+
+  _timelineDragScrollDir = dir;
+  if (dir !== 0 && !_timelineDragScrollRaf) {
+    _timelineDragScrollRaf = requestAnimationFrame(_timelineDragAutoScrollTick);
+  }
+}
+
+function _timelineDragAutoScrollTick() {
+  _timelineDragScrollRaf = null;
+  if (!_timelineDragScrollDir) return;
+
+  const list = document.getElementById('timeline-novel-flow-list');
+  if (!list) return;
+
+  const maxTop = Math.max(0, list.scrollHeight - list.clientHeight);
+  if (maxTop > 0) {
+    list.scrollTop = Math.max(0, Math.min(maxTop, list.scrollTop + (_timelineDragScrollDir * 14)));
+  } else {
+    window.scrollBy(0, _timelineDragScrollDir * 14);
+  }
+
+  _timelineDragScrollRaf = requestAnimationFrame(_timelineDragAutoScrollTick);
+}
+
+function _stopTimelineDragAutoScroll() {
+  _timelineDragScrollDir = 0;
+  if (_timelineDragScrollRaf) {
+    cancelAnimationFrame(_timelineDragScrollRaf);
+    _timelineDragScrollRaf = null;
+  }
+}
+
+function onTimelinePlannerDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  _setTimelineDragAutoScrollDirection(event);
+  const row = event.currentTarget;
+  if (row && row.classList) row.classList.add('drag-over');
+}
+
+function onTimelinePlannerDragLeave(event) {
+  const row = event.currentTarget;
+  if (row && row.classList) row.classList.remove('drag-over');
+}
+
+function onTimelinePlannerDragEnd(event) {
+  _timelineDraggedChapterId = null;
+  _stopTimelineDragAutoScroll();
+  const row = event.currentTarget;
+  if (row && row.classList) {
+    row.classList.remove('dragging');
+    row.classList.remove('drag-over');
+  }
+  document.querySelectorAll('.timeline-flow-row.drag-over,.timeline-flow-row.dragging')
+    .forEach(el => el.classList.remove('drag-over', 'dragging'));
+}
+
+function onTimelinePlannerDrop(event, targetChapterId) {
+  event.preventDefault();
+  _stopTimelineDragAutoScroll();
+  const row = event.currentTarget;
+  if (row && row.classList) row.classList.remove('drag-over');
+
+  const draggedId = _timelineDraggedChapterId || event.dataTransfer.getData('text/plain');
+  if (!draggedId || draggedId === targetChapterId) return;
+
+  const id = state.currentProjectId;
+  if (!id) return;
+  const chapters = (getProjectData(id, 'chapitres') || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  const from = chapters.findIndex(c => c.id === draggedId);
+  const to = chapters.findIndex(c => c.id === targetChapterId);
+  if (from < 0 || to < 0) return;
+
+  const [moved] = chapters.splice(from, 1);
+  chapters.splice(to, 0, moved);
+  const now = new Date().toISOString();
+  const reordered = chapters.map((c, idx) => ({ ...c, numero: idx + 1, updatedAt: now }));
+
+  saveProjectData(id, 'chapitres', reordered);
+  touchProject(id);
+
+  if (state.currentSection === 'chapitres' && typeof renderChapters === 'function') renderChapters();
+  if (state.currentSection === 'scenes' && typeof renderScenes === 'function') renderScenes();
+  if (state.currentSection === 'manuscrit' && typeof renderManuscript === 'function') renderManuscript();
+  renderTimelineNovelPlanner();
+}
+
+function _formatTimelineDateLabel(dateObj) {
+  return dateObj.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function createNovelTimelineStructure() {
+  const id = state.currentProjectId;
+  if (!id) {
+    showToast('Ouvrez un projet d\'abord', 'error');
+    return;
+  }
+
+  const mode = document.getElementById('timeline-structure-mode')?.value || 'numbers';
+  const replace = !!document.getElementById('timeline-structure-replace')?.checked;
+  const existing = getProjectData(id, 'chapitres') || [];
+
+  if (replace && existing.length) {
+    const hasLinkedScenes = existing.some(c => Array.isArray(c.scenesIds) && c.scenesIds.length > 0);
+    const msg = hasLinkedScenes
+      ? 'Les chapitres actuels et leurs liens de scenes seront remplaces. Continuer ?'
+      : 'La structure actuelle sera remplacee. Continuer ?';
+    showConfirm('Remplacer la structure ?', msg, () => _createNovelTimelineStructureConfirmed(mode, replace));
+    return;
+  }
+
+  _createNovelTimelineStructureConfirmed(mode, replace);
+}
+
+function _createNovelTimelineStructureConfirmed(mode, replace) {
+  const id = state.currentProjectId;
+  const existing = getProjectData(id, 'chapitres') || [];
+  const now = new Date().toISOString();
+  const baseNum = replace ? 1 : (existing.reduce((m, c) => Math.max(m, c.numero || 0), 0) + 1);
+  const generated = [];
+
+  if (mode === 'dates') {
+    const startRaw = document.getElementById('timeline-structure-date-start')?.value || '';
+    const endRaw = document.getElementById('timeline-structure-date-end')?.value || startRaw;
+    if (!startRaw) {
+      showToast('La date de debut est requise', 'error');
+      return;
+    }
+
+    const start = new Date(startRaw + 'T00:00:00');
+    const end = new Date(endRaw + 'T00:00:00');
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      showToast('Dates invalides', 'error');
+      return;
+    }
+    if (end.getTime() < start.getTime()) {
+      showToast('La date de fin doit etre apres la date de debut', 'error');
+      return;
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const spanDays = Math.round((end.getTime() - start.getTime()) / dayMs) + 1;
+    if (spanDays > 365) {
+      showToast('Plage trop large (max 365 jours par generation)', 'error');
+      return;
+    }
+    if (!replace && (existing.length + spanDays) > TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS) {
+      showToast(`Trop de chapitres au total (max ${TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS})`, 'error');
+      return;
+    }
+
+    for (let i = 0; i < spanDays; i++) {
+      const d = new Date(start.getTime() + i * dayMs);
+      const numero = baseNum + i;
+      generated.push({
+        id: uid(),
+        numero,
+        titre: `Chapitre ${numero}`,
+        timelineDate: _formatTimelineDateLabel(d),
+        notes: '',
+        resume: '',
+        wordEstimate: 0,
+        pov: '',
+        musicPlaylistId: '',
+        statut: 'Brouillon',
+        heureDebut: '',
+        heureFin: '',
+        scenesIds: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  } else {
+    const count = parseInt(document.getElementById('timeline-structure-count')?.value || '0', 10);
+    if (!count || count < 1) {
+      showToast('Le nombre de chapitres doit etre superieur a 0', 'error');
+      return;
+    }
+    if (count > 200) {
+      showToast('Maximum 200 chapitres par generation', 'error');
+      return;
+    }
+    if (!replace && (existing.length + count) > TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS) {
+      showToast(`Trop de chapitres au total (max ${TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS})`, 'error');
+      return;
+    }
+
+    for (let i = 0; i < count; i++) {
+      const numero = baseNum + i;
+      generated.push({
+        id: uid(),
+        numero,
+        titre: `Chapitre ${numero}`,
+        notes: '',
+        resume: '',
+        wordEstimate: 0,
+        pov: '',
+        musicPlaylistId: '',
+        statut: 'Brouillon',
+        heureDebut: '',
+        heureFin: '',
+        scenesIds: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  const nextChapters = replace ? generated : [...existing, ...generated];
+  if (nextChapters.length > TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS) {
+    showToast(`Trop de chapitres au total (max ${TIMELINE_PLANNER_MAX_TOTAL_CHAPTERS})`, 'error');
+    return;
+  }
+  saveProjectData(id, 'chapitres', nextChapters);
+  touchProject(id);
+
+  if (typeof closeModal === 'function') closeModal('modal-confirm');
+
+  if (state.currentSection === 'chapitres') renderChapters();
+  if (state.currentSection === 'scenes' && typeof renderScenes === 'function') renderScenes();
+  renderTimelineNovelPlanner();
+  showToast(`Structure creee: ${generated.length} chapitre${generated.length !== 1 ? 's' : ''}`, 'success');
+}
+
 // ============================================================
 // COMPARATEUR VERSIONS
 // ============================================================
@@ -920,16 +1265,42 @@ p:first-of-type { text-indent: 0; }
 </html>`);
 
   // Content OPF
-  const manifest = [
+  const manifestItems = [
     '<item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>',
     '<item id="copyright" href="copyright.xhtml" media-type="application/xhtml+xml"/>',
     '<item id="toc-xhtml" href="toc.xhtml" media-type="application/xhtml+xml"/>',
     '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
     '<item id="css" href="styles.css" media-type="text/css"/>',
     ...chapItems.map(c => `<item id="${c.id}" href="${c.file}" media-type="application/xhtml+xml"/>`),
-  ].join('\n    ');
+  ];
 
-  const spine = chapItems.map(c => `<itemref idref="${c.id}"/>`).join('\n    ');
+  const spineItems = chapItems.map(c => `<itemref idref="${c.id}"/>`);
+
+  let coverMetaTag = '';
+  if (metadata.coverImage && /^data:image\//i.test(metadata.coverImage)) {
+    const header = metadata.coverImage.split(',')[0] || '';
+    const b64 = metadata.coverImage.split(',')[1] || '';
+    if (b64) {
+      const mimeMatch = header.match(/^data:([^;]+);base64$/i);
+      const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : 'image/jpeg';
+      const ext = mimeType === 'image/png' ? 'png' : (mimeType === 'image/webp' ? 'webp' : 'jpg');
+      const coverFile = `cover.${ext}`;
+      zip.file(`OEBPS/${coverFile}`, b64, { base64: true });
+      zip.file('OEBPS/cover.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Couverture</title><link rel="stylesheet" href="styles.css"/></head>
+<body style="margin:0;padding:0;text-align:center;"><img src="${coverFile}" alt="Couverture" style="max-width:100%;height:auto;"/></body>
+</html>`);
+      manifestItems.push(`<item id="cover-image" href="${coverFile}" media-type="${mimeType}"/>`);
+      manifestItems.push('<item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>');
+      spineItems.unshift('<itemref idref="cover-xhtml"/>');
+      coverMetaTag = '<meta name="cover" content="cover-image"/>';
+    }
+  }
+
+  const manifest = manifestItems.join('\n    ');
+  const spine = spineItems.join('\n    ');
 
   zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
@@ -939,6 +1310,7 @@ p:first-of-type { text-indent: 0; }
     <dc:language>${metadata.language || 'fr'}</dc:language>
     <dc:identifier id="uid">${metadata.isbn || uid()}</dc:identifier>
     ${metadata.description ? `<dc:description>${esc(metadata.description)}</dc:description>` : ''}
+    ${coverMetaTag}
   </metadata>
   <manifest>
     ${manifest}
@@ -951,20 +1323,25 @@ p:first-of-type { text-indent: 0; }
   </spine>
 </package>`);
 
-  // Cover image if provided
-  if (metadata.coverImage) {
-    const b64 = metadata.coverImage.split(',')[1];
-    if (b64) {
-      zip.file('OEBPS/cover.jpg', b64, { base64: true });
-    }
-  }
-
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = (metadata.title || 'livre').replace(/[^a-zA-Z0-9]/g, '_') + '.epub';
+  const blob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    mimeType: 'application/epub+zip',
+  });
+  const safeName = String(metadata.title || 'livre').trim().replace(/[\\/:*?"<>|]+/g, '_') || 'livre';
+  const epubBlob = blob.type === 'application/epub+zip'
+    ? blob
+    : new Blob([blob], { type: 'application/epub+zip' });
+  const objectUrl = URL.createObjectURL(epubBlob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `${safeName}.epub`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  // Keep URL alive briefly to avoid flaky downloads on slower/mobile browsers.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
   showToast('EPUB généré avec succès !', 'success');
 }
 
@@ -986,6 +1363,44 @@ function exportEPUB() {
     description: document.getElementById('epub-description')?.value || '',
     coverImage:  document.getElementById('epub-cover-preview')?.src || null,
   };
+
+  // Prefer the central EPUB builder used by the export modal to keep one robust path.
+  if (typeof assembleAndDownloadEpub === 'function') {
+    const opts = {
+      format: 'epub',
+      toc: true,
+      titlePage: true,
+      copyrightPage: true,
+      chapterNumbers: true,
+      font: 'serif',
+      fontSize: 12,
+      lineHeight: 1.6,
+      separator: '###',
+      coverFile: null,
+    };
+
+    const coverPreview = document.getElementById('epub-cover-preview')?.src || '';
+    if (/^data:image\//i.test(coverPreview)) {
+      // Convert preview data URL to a File so the central builder embeds it reliably.
+      fetch(coverPreview)
+        .then(response => response.blob())
+        .then(blob => {
+          const ext = blob.type === 'image/png' ? 'png' : (blob.type === 'image/webp' ? 'webp' : 'jpg');
+          opts.coverFile = new File([blob], `cover.${ext}`, { type: blob.type || 'image/jpeg' });
+          assembleAndDownloadEpub(metadata, opts);
+          showToast('EPUB généré avec succès !', 'success');
+        })
+        .catch(() => {
+          assembleAndDownloadEpub(metadata, opts);
+          showToast('EPUB généré avec succès !', 'success');
+        });
+      return;
+    }
+
+    assembleAndDownloadEpub(metadata, opts);
+    showToast('EPUB généré avec succès !', 'success');
+    return;
+  }
 
   generateEPUB(metadata, withContent).catch(err => showToast('Erreur EPUB : ' + err.message, 'error'));
 }

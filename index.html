@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="scenes.css">
-  <link rel="stylesheet" href="editor.css">
-  <link rel="stylesheet" href="features.css">
+  <link rel="stylesheet" href="style.css?v=20260306d">
+  <link rel="stylesheet" href="scenes.css?v=20260306d">
+  <link rel="stylesheet" href="editor.css?v=20260306d">
+  <link rel="stylesheet" href="features.css?v=20260306d">
   <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
   <link rel="manifest" href="manifest.json">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
@@ -46,7 +46,6 @@
       <div class="form-group">
         <label for="auth-email">Email</label>
         <input id="auth-email" type="email" class="form-control" placeholder="email@exemple.com">
-      </div>
       <div class="form-group">
         <label for="auth-password">Mot de passe</label>
         <input id="auth-password" type="password" class="form-control" placeholder="Mot de passe">
@@ -566,6 +565,44 @@
         <div class="section-header">
           <h2>Timeline</h2>
           <button class="btn btn-primary" onclick="openEventModal()">+ Ajouter événement</button>
+        </div>
+        <div id="timeline-novel-flow" class="timeline-flow-panel">
+          <div class="timeline-flow-head">
+            <h3>Structure du roman</h3>
+            <small>1) Créer timeline chapitres 2) Lier scènes 3) Écrire chapitre</small>
+          </div>
+          <div class="form-row" style="gap:10px;align-items:end;flex-wrap:wrap">
+            <div class="form-group" style="min-width:220px">
+              <label>Mode de structure</label>
+              <select id="timeline-structure-mode" class="form-control" onchange="onTimelineStructureModeChange()">
+                <option value="numbers">Numéros (1, 2, 3...)</option>
+                <option value="dates">Dates (1 chapitre par jour)</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-bottom:10px">
+              <label style="margin:0"><input type="checkbox" id="timeline-structure-replace"> Remplacer la structure existante</label>
+            </div>
+          </div>
+          <div id="timeline-structure-numbers" class="form-row" style="gap:10px;align-items:end;flex-wrap:wrap">
+            <div class="form-group" style="max-width:220px">
+              <label>Nombre de chapitres</label>
+              <input type="number" id="timeline-structure-count" class="form-control" min="1" placeholder="12">
+            </div>
+          </div>
+          <div id="timeline-structure-dates" class="form-row hidden" style="gap:10px;align-items:end;flex-wrap:wrap">
+            <div class="form-group" style="max-width:220px">
+              <label>Date début</label>
+              <input type="date" id="timeline-structure-date-start" class="form-control">
+            </div>
+            <div class="form-group" style="max-width:220px">
+              <label>Date fin</label>
+              <input type="date" id="timeline-structure-date-end" class="form-control">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+            <button class="btn btn-secondary" onclick="createNovelTimelineStructure()">Créer la timeline chapitres</button>
+          </div>
+          <div id="timeline-novel-flow-list" class="timeline-flow-list"></div>
         </div>
         <div id="timeline-filters" class="form-row" style="gap:12px;margin-bottom:12px;flex-wrap:wrap">
           <div style="display:flex;gap:10px;align-items:center">
@@ -1606,7 +1643,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-import-scene')">Annuler</button>
-      <button class="btn btn-primary" onclick="importGlobalScene()">Importer</button>
+      <button id="import-scene-submit" class="btn btn-primary" onclick="importGlobalScene()">Importer</button>
     </div>
   </div>
 </div>
@@ -2613,35 +2650,21 @@
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script defer src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="app.js"></script>
-<script defer src="scenes.js"></script>
-<script defer src="editor.js"></script>
-<script defer src="features.js"></script>
+<script defer src="app.js?v=20260306d"></script>
+<script defer src="scenes.js?v=20260306d"></script>
+<script defer src="editor.js?v=20260306d"></script>
+<script defer src="features.js?v=20260306d"></script>
 
-<!-- Service Worker Registration for PWA Support -->
+<!-- Service Worker cleanup to avoid stale cached builds -->
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    let refreshing = false;
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-
-    navigator.serviceWorker.register('./sw.js').then(
-      registration => {
-        registration.update();
-        if (registration.waiting) {
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-        console.log('✓ Service Worker registered:', registration.scope);
-      },
-      error => {
-        console.warn('✗ Service Worker registration failed:', error);
-      }
-    );
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => Promise.all(regs.map(r => r.unregister())))
+      .then(() => caches.keys())
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => console.log('Service Worker and caches cleared for fresh build'))
+      .catch(error => console.warn('Service Worker cleanup failed:', error));
   });
 }
 </script>
