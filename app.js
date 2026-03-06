@@ -1327,8 +1327,8 @@ function renderDashboard() {
   const isMafiaTheme = document.body.classList.contains('theme-mafia');
   const chartRelColors = isMafiaTheme
     ? ['#7D1734', '#A44963', '#B24A3A', '#671129', '#8A2F4C', '#C46B7D', '#8B6B58']
-    : ['#2196F3', '#E91E63', '#FF9800', '#9C27B0', '#4CAF50', '#F44336', 'gray'];
-  const chartStatusColor = isMafiaTheme ? '#7D1734' : '#4CAF50';
+    : ['#2196F3', '#E91E63', '#FF9800', '#9C27B0', '#A6782F', '#F44336', 'gray'];
+  const chartStatusColor = isMafiaTheme ? '#7D1734' : '#B24A3A';
   if (project && project.description) {
     descEl.innerHTML = `
       <div class="dashboard-desc-label">Description du projet</div>
@@ -2594,7 +2594,7 @@ function ensureVisualThemeControls() {
       <option value="foret">Forte</option>
       <option value="mafia">Mafia</option>
     </select>
-    <div class="settings-hint" style="margin-top:6px">Choisis entre Forte (vert naturel) et Mafia (bordeaux/noir/dore)</div>
+    <div class="settings-hint" style="margin-top:6px">Choisis entre Forte (rouge/noir/dore) et Mafia (bordeaux/noir/dore)</div>
   `;
 
   if (anchor && anchor.parentElement) {
@@ -3241,9 +3241,9 @@ function applyAppearance(prefs) {
     if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#090407' : '#12090D');
   } else {
     document.body.classList.add('theme-foret');
-    document.documentElement.style.setProperty('--primary', '#0F766E');
-    document.documentElement.style.setProperty('--primary-dark', '#115E59');
-    if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#0A1110' : '#0F766E');
+    document.documentElement.style.setProperty('--primary', '#A6782F');
+    document.documentElement.style.setProperty('--primary-dark', '#8F6625');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#090407' : '#7D1734');
   }
 }
 
@@ -3255,7 +3255,7 @@ function saveAppearanceSettings() {
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
   const visualTheme = document.getElementById('appearance-visual-theme')?.value || prefs.visualTheme || 'mafia';
-  const accent = visualTheme === 'mafia' ? '#7D1734' : '#0F766E';
+  const accent = visualTheme === 'mafia' ? '#7D1734' : '#A6782F';
   prefs.appearance = mode;
   prefs.accent = accent;
   prefs.density = density;
