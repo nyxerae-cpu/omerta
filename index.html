@@ -22,6 +22,44 @@
   <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 </head>
 <body>
+  <div id="boot-fallback" style="position:fixed;inset:0;z-index:99999;background:#fffbe6;color:#111;padding:18px;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;display:none;overflow:auto">
+    <h2 style="margin:0 0 10px 0;font-size:20px">Chargement de WorldBuilder...</h2>
+    <p style="margin:0 0 8px 0">Si cet ecran reste visible, ouvre directement:</p>
+    <p style="margin:0 0 12px 0"><a href="https://nyxerae-cpu.github.io/omerta/" style="color:#0a58ca">https://nyxerae-cpu.github.io/omerta/</a></p>
+    <p style="margin:0">Puis fais un refresh complet: <strong>Ctrl+Shift+R</strong>.</p>
+  </div>
+  <script>
+    (function bootSafetyNet(){
+      function isAppVisible() {
+        var ids = ['auth-page', 'home-page', 'project-page'];
+        for (var i = 0; i < ids.length; i++) {
+          var el = document.getElementById(ids[i]);
+          if (el && !el.classList.contains('hidden')) return true;
+        }
+        return false;
+      }
+
+      function showFallback() {
+        var fb = document.getElementById('boot-fallback');
+        if (fb) fb.style.display = 'block';
+      }
+
+      function hideFallback() {
+        var fb = document.getElementById('boot-fallback');
+        if (fb) fb.style.display = 'none';
+      }
+
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          if (!isAppVisible()) showFallback(); else hideFallback();
+        }, 3500);
+      });
+
+      document.addEventListener('visibilitychange', function () {
+        if (isAppVisible()) hideFallback();
+      });
+    })();
+  </script>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
 
 <!-- ===================== AUTH PAGE ===================== -->
