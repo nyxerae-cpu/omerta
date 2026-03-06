@@ -93,6 +93,16 @@ function openChapterEditor(chapId) {
     }).join('');
   povSel.value = chap.pov || '';
 
+  // Linked music (project playlists)
+  const musicSel = document.getElementById('ce-music');
+  const playlists = getProjectData(state.currentProjectId, 'playlists') || [];
+  if (musicSel) {
+    musicSel.innerHTML = '<option value="">— Aucune —</option>' +
+      playlists.map(pl => `<option value="${pl.id}">${esc(pl.nom || 'Playlist sans nom')}</option>`).join('');
+    musicSel.value = chap.musicPlaylistId || '';
+  }
+  updateChapterMusicQuickLink();
+
   // Init Quill – if chapter contains scenes, build content from them (separator ###)
   let html;
   const scenes = getProjectData(state.currentProjectId, 'scenes');
@@ -348,6 +358,7 @@ function _saveChapterEditor() {
     pov:         document.getElementById('ce-pov').value,
     statut:      document.getElementById('ce-statut').value,
     tags:        parseTags(document.getElementById('ce-tags').value),
+    musicPlaylistId: document.getElementById('ce-music') ? document.getElementById('ce-music').value : '',
     notes:       document.getElementById('ce-notes').value.trim(),
     contenuHtml: html,
     contenu:     plain,
@@ -427,6 +438,35 @@ function saveChapterEditor() {
 function saveSceneEditor() {
   _saveSceneEditor();
   showToast('Scène sauvegardée', 'success');
+}
+
+function updateChapterMusicQuickLink() {
+  const btn = document.getElementById('ce-music-open');
+  const sel = document.getElementById('ce-music');
+  if (!btn || !sel || !state.currentProjectId) return;
+
+  const selectedId = sel.value;
+  if (!selectedId) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  const playlists = getProjectData(state.currentProjectId, 'playlists') || [];
+  const pl = playlists.find(x => x.id === selectedId);
+  btn.style.display = (pl && pl.url) ? 'inline-flex' : 'none';
+}
+
+function openSelectedChapterMusic() {
+  const sel = document.getElementById('ce-music');
+  if (!sel || !sel.value || !state.currentProjectId) return;
+
+  const playlists = getProjectData(state.currentProjectId, 'playlists') || [];
+  const pl = playlists.find(x => x.id === sel.value);
+  if (!pl || !pl.url) {
+    showToast('Aucun lien Spotify sur cette playlist', 'error');
+    return;
+  }
+  openSpotify(pl.url);
 }
 
 // ============================================================

@@ -1939,6 +1939,11 @@
               <input type="text" id="ce-tags" class="form-control" placeholder="action, révélation…">
             </div>
             <div>
+              <label>Musique liée</label>
+              <select id="ce-music" class="form-control" onchange="updateChapterMusicQuickLink()"></select>
+              <button id="ce-music-open" class="btn btn-spotify btn-sm" style="margin-top:6px;display:none" onclick="openSelectedChapterMusic()">▶️ Écouter sur Spotify</button>
+            </div>
+            <div>
               <label>Notes</label>
               <textarea id="ce-notes" class="form-control" rows="4" placeholder="Rappels, intentions narratives…"></textarea>
             </div>
