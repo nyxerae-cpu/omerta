@@ -1326,9 +1326,9 @@ function renderDashboard() {
   const descEl  = document.getElementById('dashboard-desc');
   const isMafiaTheme = document.body.classList.contains('theme-mafia');
   const chartRelColors = isMafiaTheme
-    ? ['#A6782F', '#7D1734', '#C9A15A', '#8F6625', '#A44963', '#B24A3A', '#8B6B58']
+    ? ['#7D1734', '#A44963', '#B24A3A', '#671129', '#8A2F4C', '#C46B7D', '#8B6B58']
     : ['#2196F3', '#E91E63', '#FF9800', '#9C27B0', '#4CAF50', '#F44336', 'gray'];
-  const chartStatusColor = isMafiaTheme ? '#A6782F' : '#4CAF50';
+  const chartStatusColor = isMafiaTheme ? '#7D1734' : '#4CAF50';
   if (project && project.description) {
     descEl.innerHTML = `
       <div class="dashboard-desc-label">Description du projet</div>
@@ -2195,7 +2195,7 @@ function renderRelationsMatrix(list) {
 
   const TYPE_COLORS = {
     'Amour/Romance':    '#ec4899',
-    'Amitié':           isMafiaTheme ? '#A6782F' : '#22c55e',
+    'Amitié':           isMafiaTheme ? '#7D1734' : '#22c55e',
     'Famille':          '#f59e0b',
     'Frère/Sœur':       '#f97316',
     'Conflit/Ennemis':  '#ef4444',
@@ -3255,7 +3255,7 @@ function saveAppearanceSettings() {
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
   const visualTheme = document.getElementById('appearance-visual-theme')?.value || prefs.visualTheme || 'mafia';
-  const accent = visualTheme === 'mafia' ? '#A6782F' : '#0F766E';
+  const accent = visualTheme === 'mafia' ? '#7D1734' : '#0F766E';
   prefs.appearance = mode;
   prefs.accent = accent;
   prefs.density = density;

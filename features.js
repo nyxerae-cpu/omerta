@@ -176,7 +176,7 @@ function isMafiaThemeEnabled() {
 }
 
 function getSuccessTone() {
-  return isMafiaThemeEnabled() ? '#A6782F' : '#10B981';
+  return isMafiaThemeEnabled() ? '#7D1734' : '#10B981';
 }
 
 function renderJournal() {
@@ -210,7 +210,7 @@ function renderJournal() {
   el.innerHTML = list.map(e => {
     const cat   = JOURNAL_CATEGORIES.find(c => c.value === e.categorie) || JOURNAL_CATEGORIES[0];
     const catColor = isMafiaThemeEnabled() && (cat.value === 'session' || cat.value === 'resolution')
-      ? '#A6782F'
+      ? '#7D1734'
       : cat.color;
     const dStr  = new Date(e.date).toLocaleDateString('fr', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
     return `

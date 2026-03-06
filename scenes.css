@@ -272,8 +272,8 @@
 .badge-termine   { background: color-mix(in srgb, var(--success) 22%, transparent); color: var(--success); }
 
 body.theme-mafia .badge-termine {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+  background: rgba(125, 23, 52, .24);
+  color: #F7DCE3;
 }
 
 .scene-card-meta {

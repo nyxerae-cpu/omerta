@@ -86,7 +86,7 @@ input[type="checkbox"] {
 
 body.theme-mafia input[type="radio"],
 body.theme-mafia input[type="checkbox"] {
-  accent-color: #A6782F;
+  accent-color: #7D1734;
 }
 
 .hidden { display: none !important; }
@@ -2640,7 +2640,7 @@ body.theme-mafia {
   --primary-dark: #8F6625;
   --primary-light: #F2E3BB;
   --primary-text: #4A3312;
-  --success: #A6782F;
+  --success: #7D1734;
   --bg: #12090D;
   --white: #1B1216;
   --sidebar-bg: #140C10;
@@ -2739,18 +2739,18 @@ body.theme-mafia .form-control:focus {
 }
 
 body.theme-mafia .btn-spotify {
-  background: #A6782F;
+  background: #7D1734;
   color: #12090D;
 }
 
 body.theme-mafia .btn-spotify:hover {
-  background: #8F6625;
+  background: #671129;
 }
 
 body.theme-mafia .badge-commerce,
 body.theme-mafia .badge-nature,
 body.theme-mafia .note-type-badge.lieu {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+  background: rgba(125, 23, 52, .24);
+  color: #F7DCE3;
 }
 

@@ -227,8 +227,8 @@
 .diff-same    { color: var(--gray-500); }
 
 body.theme-mafia .diff-added {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+  background: rgba(125, 23, 52, .24);
+  color: #F7DCE3;
 }
 
 /* ── Scene Corkboard ──────────────────────────────────────── */
@@ -666,8 +666,8 @@ body.theme-mafia .diff-added {
 .epub-check.fail { background: #FEE2E2; color: #991B1B; }
 
 body.theme-mafia .epub-check.pass {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+  background: rgba(125, 23, 52, .24);
+  color: #F7DCE3;
 }
 
 /* ── Checklist ────────────────────────────────────────────── */
