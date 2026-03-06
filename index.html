@@ -294,6 +294,10 @@
           </span>
           <span class="nav-label">Dashboard</span>
         </button>
+        <button class="nav-item" data-section="exportepub" onclick="navigateTo('exportepub')">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">Export EPUB</span>
+        </button>
         <div class="sidebar-group-label">Codex</div>
         <div class="sidebar-codex-group">
           <button class="nav-item" data-section="personnages" onclick="navigateTo('personnages')">
@@ -373,6 +377,64 @@
     </aside>
 
     <main id="main-content" class="main-content">
+
+      <!-- Export EPUB dédié -->
+      <section id="section-exportepub" class="content-section hidden">
+        <div class="section-header">
+          <h2>Export EPUB</h2>
+        </div>
+        <div class="exportepub-container" style="max-width:480px;margin:auto;background:var(--white);padding:24px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+          <form id="exportepub-form">
+            <div class="form-group">
+              <label for="exportepub-title">Titre du livre *</label>
+              <input type="text" id="exportepub-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="exportepub-author">Auteur *</label>
+              <input type="text" id="exportepub-author" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="exportepub-cover">Couverture (image)</label>
+              <input type="file" id="exportepub-cover" accept="image/*">
+              <img id="exportepub-cover-preview" alt="Couverture" style="display:none;width:60px;height:84px;object-fit:cover;border-radius:4px;border:1px solid var(--gray-200);margin-top:8px">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="exportepub-language">Langue</label>
+                <select id="exportepub-language" class="form-control">
+                  <option value="fr">Français</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="exportepub-font">Police</label>
+                <select id="exportepub-font" class="form-control">
+                  <option>Garamond</option>
+                  <option>Georgia</option>
+                  <option>Times New Roman</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="exportepub-font-size">Taille</label>
+                <input type="number" id="exportepub-font-size" class="form-control" value="12" min="6">
+              </div>
+              <div class="form-group">
+                <label for="exportepub-line-height">Interligne</label>
+                <input type="number" id="exportepub-line-height" class="form-control" value="1.5" step="0.1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="exportepub-description">Description / 4e de couverture</label>
+              <textarea id="exportepub-description" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group" style="margin-top:18px">
+              <button type="button" class="btn btn-primary" onclick="generateEpubFromExportTab()">Générer l'EPUB</button>
+            </div>
+          </form>
+        </div>
+      </section>
 
       <!-- Dashboard -->
       <section id="section-dashboard" class="content-section">
