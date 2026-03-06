@@ -3200,6 +3200,12 @@ function applyAppearance(prefs) {
   // keep only premium visual direction
   document.body.classList.remove('theme-premium', 'theme-roman', 'theme-saas');
   document.body.classList.add('theme-premium');
+
+  // Keep seasonal theme as a pure color overlay on top of the active visual style.
+  if (prefs && prefs.seasonalTheme) {
+    const season = prefs.seasonalOverride || detectDominantSeason(state.currentProjectId);
+    if (season) applySeasonalTheme(season);
+  }
 }
 
 function saveAppearanceSettings() {
@@ -5367,6 +5373,20 @@ function applySeasonalTheme(season) {
   document.body.dataset.season = season;
 }
 
+function setSeasonalTheme(season) {
+  const id = state.currentProjectId;
+  if (!id) return;
+  const prefs = getProjectPrefs(id) || {};
+  prefs.seasonalTheme = true;
+  prefs.seasonalOverride = season;
+  saveProjectPrefs(id, prefs);
+  applySeasonalTheme(season);
+
+  const seasonalToggle = document.getElementById('settings-seasonal');
+  if (seasonalToggle) seasonalToggle.checked = true;
+  showToast(`Palette saisonniere: ${SEASONAL_PALETTES[season]?.name || season}`);
+}
+
 function removeSeasonalTheme() {
   const root = document.documentElement;
   root.style.removeProperty('--primary');
@@ -5379,7 +5399,7 @@ function removeSeasonalTheme() {
 function toggleSeasonalTheme(on, manual = null) {
   const id = state.currentProjectId;
   if (!id) return;
-  const prefs = getProjectPrefs(id);
+  const prefs = getProjectPrefs(id) || {};
   prefs.seasonalTheme = on;
   if (on && manual) prefs.seasonalOverride = manual;
   else if (!on) delete prefs.seasonalOverride;
@@ -5390,8 +5410,8 @@ function toggleSeasonalTheme(on, manual = null) {
     if (season) applySeasonalTheme(season);
   } else {
     removeSeasonalTheme();
-    // Restore accent from prefs
-    if (prefs.appearance?.accent) document.documentElement.style.setProperty('--primary', prefs.appearance.accent);
+    // Restore base appearance colors and style.
+    applyAppearance(prefs);
   }
   showToast(on ? `Thème saisonnier activé` : 'Thème saisonnier désactivé');
 }
