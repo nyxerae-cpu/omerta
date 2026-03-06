@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorldBuilder - Acces Secours</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #fffbe6;
+      color: #111;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e4d58a;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.08);
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0 0 8px 0; font-size: 22px; }
+    h2 { margin: 0 0 8px 0; font-size: 18px; }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      border: 1px solid #bda95b;
+      background: #fff;
+      color: #111;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 4px 6px 4px 0;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn.primary { background: #111; color: #fff; border-color: #111; }
+    .muted { color: #5f5f5f; font-size: 13px; }
+    .list { margin: 8px 0 0 0; padding-left: 18px; }
+    code { background: #f6f1d2; padding: 2px 6px; border-radius: 6px; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f9f4d8;
+      border: 1px solid #eadb9f;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>WorldBuilder - Acces Secours</h1>
+      <p>Cette page permet de recuperer l'acces quand l'app principale affiche un ecran blanc.</p>
+      <a class="btn primary" id="open-main" href="./index.html?v=rescue-open">Ouvrir l'app principale</a>
+      <button class="btn" id="clear-sw">Nettoyer cache navigateur</button>
+      <button class="btn" id="reload">Recharger cette page</button>
+      <p class="muted">URL conseillee: <code>https://nyxerae-cpu.github.io/omerta/rescue.html</code></p>
+    </div>
+
+    <div class="card">
+      <h2>Projets detectes (stockage local du navigateur)</h2>
+      <div id="projects"></div>
+      <p class="muted">Si la liste est vide, c'est probablement un autre navigateur/profil.</p>
+    </div>
+
+    <div class="card">
+      <h2>Diagnostic</h2>
+      <pre id="diag">Chargement...</pre>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const diag = document.getElementById('diag');
+      const projectsEl = document.getElementById('projects');
+
+      function setDiag(lines) {
+        diag.textContent = lines.join('\n');
+      }
+
+      function readProjects() {
+        const keys = ['projets', 'projects'];
+        for (const k of keys) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return { key: k, data: arr };
+          } catch (_) {}
+        }
+        return { key: '(none)', data: [] };
+      }
+
+      async function clearCaches() {
+        const out = [];
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+            out.push('Service workers supprimes: ' + regs.length);
+          } else {
+            out.push('Service worker non supporte');
+          }
+        } catch (e) {
+          out.push('Erreur SW: ' + (e && e.message ? e.message : String(e)));
+        }
+
+        try {
+          if (window.caches && caches.keys) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+            out.push('Caches supprimes: ' + keys.length);
+          } else {
+            out.push('API caches indisponible');
+          }
+        } catch (e) {
+          out.push('Erreur caches: ' + (e && e.message ? e.message : String(e)));
+        }
+
+        alert(out.join('\n'));
+        location.href = './index.html?v=clean-' + Date.now();
+      }
+
+      const p = readProjects();
+      if (!p.data.length) {
+        projectsEl.innerHTML = '<p>Aucun projet detecte.</p>';
+      } else {
+        const items = p.data.map(x => '<li>' + (x && (x.name || x.nom || x.id) ? String(x.name || x.nom || x.id) : '(sans nom)') + '</li>').join('');
+        projectsEl.innerHTML = '<p>Source: <code>' + p.key + '</code></p><ul class="list">' + items + '</ul>';
+      }
+
+      document.getElementById('clear-sw').addEventListener('click', clearCaches);
+      document.getElementById('reload').addEventListener('click', () => location.reload());
+
+      setDiag([
+        'User agent: ' + navigator.userAgent,
+        'URL: ' + location.href,
+        'localStorage(projets): ' + (localStorage.getItem('projets') ? 'oui' : 'non'),
+        'localStorage(projects): ' + (localStorage.getItem('projects') ? 'oui' : 'non'),
+        'Date: ' + new Date().toISOString()
+      ]);
+    })();
+  </script>
+</body>
+</html>
