@@ -3225,14 +3225,17 @@ function applyAppearance(prefs) {
   const visualTheme = (prefs && prefs.visualTheme) || 'foret';
   const resolvedTheme = visualTheme === 'premium' ? 'foret' : visualTheme;
   document.body.classList.remove('theme-foret', 'theme-mafia', 'theme-premium', 'theme-roman', 'theme-saas');
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (resolvedTheme === 'mafia') {
     document.body.classList.add('theme-mafia');
     document.documentElement.style.setProperty('--primary', '#A6782F');
     document.documentElement.style.setProperty('--primary-dark', '#8F6625');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#090407' : '#12090D');
   } else {
     document.body.classList.add('theme-foret');
     document.documentElement.style.setProperty('--primary', '#0F766E');
     document.documentElement.style.setProperty('--primary-dark', '#115E59');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#0A1110' : '#0F766E');
   }
 }
 

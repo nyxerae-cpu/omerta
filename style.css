@@ -2668,3 +2668,61 @@ body.theme-mafia {
   --theme-marker: 2;
 }
 
+body.theme-mafia .home-header,
+body.theme-mafia .project-header {
+  background: rgba(27, 18, 22, .9);
+  border-bottom-color: rgba(87, 48, 62, .75);
+}
+
+body.theme-mafia .sidebar {
+  background: linear-gradient(180deg, var(--sidebar-bg) 0%, #1C1015 100%);
+  border-right-color: rgba(87, 48, 62, .8);
+}
+
+body.theme-mafia .nav-item:hover {
+  background: rgba(166, 120, 47, .16);
+  border-color: rgba(166, 120, 47, .35);
+}
+
+body.theme-mafia .nav-item.active {
+  background: linear-gradient(180deg, rgba(166, 120, 47, .28), rgba(125, 23, 52, .22));
+  border-color: rgba(166, 120, 47, .5);
+  box-shadow: 0 8px 18px rgba(125, 23, 52, .28);
+}
+
+body.theme-mafia.dark-mode .nav-item.active {
+  background: linear-gradient(180deg, rgba(125, 23, 52, .55), rgba(74, 18, 35, .52));
+}
+
+body.theme-mafia .btn-primary {
+  background: linear-gradient(135deg, #A6782F 0%, #7D1734 100%);
+  box-shadow: 0 10px 18px rgba(125, 23, 52, .24);
+}
+
+body.theme-mafia .btn-primary:hover {
+  background: linear-gradient(135deg, #8F6625 0%, #671129 100%);
+}
+
+body.theme-mafia .project-card,
+body.theme-mafia .item-card,
+body.theme-mafia .stat-card,
+body.theme-mafia .settings-card,
+body.theme-mafia .chapter-item,
+body.theme-mafia .dashboard-desc,
+body.theme-mafia #project-page.page-mode .content-section {
+  border-color: rgba(166, 120, 47, .28);
+}
+
+body.theme-mafia .dropdown-menu,
+body.theme-mafia .modal {
+  border-color: rgba(166, 120, 47, .35);
+}
+
+body.theme-mafia .form-control {
+  border-color: rgba(166, 120, 47, .35);
+}
+
+body.theme-mafia .form-control:focus {
+  box-shadow: 0 0 0 4px rgba(166, 120, 47, .25);
+}
+
