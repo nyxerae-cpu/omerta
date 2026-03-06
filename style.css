@@ -2362,91 +2362,6 @@ body.dark-mode .modal {
   }
 }
 
-/* ============================================================
-   THEME: ULTRA LUXE ROMAN
-   ============================================================ */
-body.theme-roman {
-  --primary: #7A1F35;
-  --primary-dark: #5A1327;
-  --primary-light: #F5E7EA;
-  --primary-text: #571120;
-  --bg: #F7F1E8;
-  --white: #FFFDF8;
-  --sidebar-bg: #F6EEE3;
-  --gray-100: #EFE4D6;
-  --gray-200: #E4D4C3;
-  --gray-300: #D7C2AD;
-  --gray-500: #7A6755;
-  --gray-600: #5C4B3E;
-  --gray-700: #3F332B;
-  --gray-800: #251D18;
-}
-body.theme-roman {
-  background:
-    radial-gradient(900px 360px at 5% -10%, rgba(122, 31, 53, .12), transparent 60%),
-    radial-gradient(700px 320px at 100% 10%, rgba(197, 162, 111, .12), transparent 58%),
-    var(--bg);
-}
-body.theme-roman .app-title,
-body.theme-roman .section-header h2,
-body.theme-roman .settings-card h3,
-body.theme-roman .modal-header h3,
-body.theme-roman .project-card-name,
-body.theme-roman .item-card-title {
-  font-family: 'Fraunces', 'Times New Roman', serif;
-  font-weight: 700;
-}
-body.theme-roman .btn-primary {
-  background: linear-gradient(135deg, #7A1F35 0%, #A02F4A 100%);
-  box-shadow: 0 10px 20px rgba(122, 31, 53, .28);
-}
-body.theme-roman .nav-item.active {
-  background: linear-gradient(180deg, #F9E9EC 0%, #F4DCE2 100%);
-  border-color: rgba(122, 31, 53, .22);
-}
-
-/* ============================================================
-   THEME: SAAS PREMIUM MODERNE
-   ============================================================ */
-body.theme-saas {
-  --primary: #2563EB;
-  --primary-dark: #1D4ED8;
-  --primary-light: #DBEAFE;
-  --primary-text: #1E3A8A;
-  --bg: #F5F8FF;
-  --white: #FFFFFF;
-  --sidebar-bg: #F8FAFF;
-  --gray-100: #EEF2FF;
-  --gray-200: #E2E8F0;
-  --gray-300: #CBD5E1;
-  --gray-500: #64748B;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-800: #0F172A;
-}
-body.theme-saas {
-  background:
-    radial-gradient(1200px 440px at -5% -20%, rgba(37, 99, 235, .12), transparent 62%),
-    radial-gradient(900px 420px at 102% -10%, rgba(14, 165, 233, .10), transparent 55%),
-    var(--bg);
-}
-body.theme-saas .app-title,
-body.theme-saas .section-header h2,
-body.theme-saas .settings-card h3,
-body.theme-saas .modal-header h3,
-body.theme-saas .project-card-name,
-body.theme-saas .item-card-title {
-  font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
-  letter-spacing: 0;
-}
-body.theme-saas .btn-primary {
-  background: linear-gradient(135deg, #2563EB 0%, #0EA5E9 100%);
-  box-shadow: 0 10px 20px rgba(37, 99, 235, .24);
-}
-body.theme-saas .nav-item.active {
-  background: linear-gradient(180deg, #E6EFFF 0%, #DBEAFE 100%);
-  border-color: rgba(37, 99, 235, .22);
-}
 
 /* ============================================================
    EYE COMFORT REFINEMENT
@@ -2513,9 +2428,7 @@ body,
 }
 
 /* calmer backgrounds to reduce eye fatigue */
-body.theme-premium,
-body.theme-roman,
-body.theme-saas {
+body.theme-premium {
   background-attachment: scroll;
 }
 

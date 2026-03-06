@@ -2590,9 +2590,7 @@ function renderSettings() {
   const fs = prefs.fontSize || 'md';
   const fsEl = document.querySelector(`input[name=\"fontSize\"][value=\"${fs}\"]`);
   if (fsEl) fsEl.checked = true;
-  // visual theme
-  const themeSel = document.getElementById('appearance-theme');
-  if (themeSel) themeSel.value = prefs.visualTheme || 'premium';
+  prefs.visualTheme = 'premium';
   // render accent presets
   const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
   const presetContainer = document.getElementById('accent-presets');
@@ -3199,10 +3197,9 @@ function applyAppearance(prefs) {
   document.body.classList.remove('font-sm','font-md','font-lg');
   const fs = (prefs && prefs.fontSize) || 'md';
   document.body.classList.add(`font-${fs}`);
-  // premium visual direction
+  // keep only premium visual direction
   document.body.classList.remove('theme-premium', 'theme-roman', 'theme-saas');
-  const visualTheme = (prefs && prefs.visualTheme) || 'premium';
-  document.body.classList.add(`theme-${visualTheme}`);
+  document.body.classList.add('theme-premium');
 }
 
 function saveAppearanceSettings() {
@@ -3213,12 +3210,11 @@ function saveAppearanceSettings() {
   const accent = document.getElementById('appearance-accent').value || prefs.accent || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
-  const visualTheme = document.getElementById('appearance-theme')?.value || prefs.visualTheme || 'premium';
   prefs.appearance = mode;
   prefs.accent = accent;
   prefs.density = density;
   prefs.fontSize = fontSize;
-  prefs.visualTheme = visualTheme;
+  prefs.visualTheme = 'premium';
   saveProjectPrefs(id, prefs);
   applyAppearance(prefs);
   showToast('Apparence enregistrée', 'success');
@@ -3980,8 +3976,7 @@ function renderSettings() {
   const fsEl = document.querySelector(`input[name="fontSize"][value="${fs}"]`);
   if (fsEl) fsEl.checked = true;
 
-  const themeSel = document.getElementById('appearance-theme');
-  if (themeSel) themeSel.value = prefs.visualTheme || 'premium';
+  prefs.visualTheme = 'premium';
 
   const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
   const presetContainer = document.getElementById('accent-presets');
