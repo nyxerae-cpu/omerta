@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'wb-cache-v11';
+const CACHE_VERSION = 'wb-cache-v12';
 const APP_SHELL = [
     './',
     './index.html',
@@ -34,30 +34,38 @@ self.addEventListener('activate', event => {
     );
 });
 
+self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
     if (new URL(event.request.url).origin !== self.location.origin) return;
 
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            fetch(event.request).catch(() => caches.match('./index.html'))
+            fetch(event.request)
+                .then(networkResponse => {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_VERSION).then(cache => cache.put('./index.html', responseToCache));
+                    return networkResponse;
+                })
+                .catch(() => caches.match('./index.html'))
         );
         return;
     }
 
     event.respondWith(
-        caches.match(event.request).then(cached => {
-            if (cached) return cached;
-
-            return fetch(event.request).then(networkResponse => {
-                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                    return networkResponse;
+        fetch(event.request)
+            .then(networkResponse => {
+                if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_VERSION).then(cache => cache.put(event.request, responseToCache));
                 }
-
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_VERSION).then(cache => cache.put(event.request, responseToCache));
                 return networkResponse;
-            });
-        })
+            })
+            .catch(() => caches.match(event.request))
     );
 });
