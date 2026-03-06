@@ -698,8 +698,6 @@
       </div>
     </div>
     <div id="biblio-actions-scenes" style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="openTemplateModal()">Modèles</button>
-      <button class="btn btn-secondary" onclick="openSnippetModal()">✂️ Snippets</button>
       <button class="btn btn-primary" onclick="openGlobalSceneModal()">+ Nouvelle scène globale</button>
     </div>
     <div id="biblio-actions-music" style="display:none;gap:8px">
@@ -2283,60 +2281,6 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-backup-manager')">Fermer</button>
-    </div>
-  </div>
-</div>
-
-<!-- Template modal -->
-<div id="modal-template" class="modal-overlay hidden">
-  <div class="modal modal-lg">
-    <div class="modal-header">
-      <h3 id="modal-template-title">Nouveau template</h3>
-      <button class="modal-close" onclick="closeModal('modal-template')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="display:grid;gap:8px;margin-bottom:12px">
-        <input type="text" id="tpl-titre" class="form-control" placeholder="Titre du template *">
-        <select id="tpl-categorie" class="form-control">
-          <option value="Autre">Autre</option>
-          <option value="Action">Action</option>
-          <option value="Dialogue">Dialogue</option>
-          <option value="Description">Description</option>
-          <option value="Transition">Transition</option>
-        </select>
-        <input type="text" id="tpl-desc" class="form-control" placeholder="Description courte…">
-        <textarea id="tpl-contenu" class="form-control" rows="6" placeholder="Contenu du template…"></textarea>
-        <button class="btn btn-primary btn-sm" onclick="saveTemplate()">Enregistrer</button>
-      </div>
-      <hr>
-      <h4 style="margin-bottom:8px;font-size:13px;color:var(--gray-600)">Templates disponibles</h4>
-      <div id="templates-list"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-template')">Fermer</button>
-    </div>
-  </div>
-</div>
-
-<!-- Snippet modal -->
-<div id="modal-snippet" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="modal-snippet-title">Nouveau snippet</h3>
-      <button class="modal-close" onclick="closeModal('modal-snippet')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="display:grid;gap:8px;margin-bottom:12px">
-        <input type="text" id="snip-titre" class="form-control" placeholder="Titre du snippet *">
-        <textarea id="snip-contenu" class="form-control" rows="3" placeholder="Contenu…"></textarea>
-        <input type="text" id="snip-tags" class="form-control" placeholder="Tags (séparés par virgule)">
-        <button class="btn btn-primary btn-sm" onclick="saveSnippet()">Enregistrer</button>
-      </div>
-      <hr>
-      <div id="snippets-list"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-snippet')">Fermer</button>
     </div>
   </div>
 </div>
