@@ -100,8 +100,7 @@
   text-align: right;
 }
 .editor-autosave.saving { color: var(--primary-text); }
-.editor-autosave.saved  { color: #059669; }
-body.theme-mafia .editor-autosave.saved { color: #F5DEAA; }
+.editor-autosave.saved  { color: var(--success); }
 
 /* Focus toggle button active state */
 .editor-focus-btn.active {
@@ -244,8 +243,7 @@ body.theme-mafia .editor-autosave.saved { color: #F5DEAA; }
   transition: width 0.3s ease;
   min-width: 0;
 }
-.progress-bar-inner.complete { background: #059669; }
-body.theme-mafia .progress-bar-inner.complete { background: #A6782F; }
+.progress-bar-inner.complete { background: var(--success); }
 
 /* Sidebar toggle (inside toolbar) */
 .editor-sidebar-toggle {

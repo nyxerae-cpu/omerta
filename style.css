@@ -785,9 +785,9 @@ button { font-family: inherit; }
 .badge-secondaire     { background: #F3F4F6; color: #374151; }
 /* Location type badges */
 .badge-residence      { background: #FEF3C7; color: #92400E; }
-.badge-commerce       { background: #D1FAE5; color: #065F46; }
+.badge-commerce       { background: color-mix(in srgb, var(--success) 22%, transparent); color: var(--success); }
 .badge-exterieur      { background: #DBEAFE; color: #1E40AF; }
-.badge-nature         { background: #DCFCE7; color: #166534; }
+.badge-nature         { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
 
 .item-card-meta {
   font-size: 13px;
@@ -2047,8 +2047,8 @@ body { transition: background var(--transition), color var(--transition); }
 }
 
 .note-type-badge.lieu {
-  background: #D1FAE5;
-  color: #059669;
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  color: var(--success);
 }
 
 .note-type-badge.intrigue {
@@ -2727,14 +2727,12 @@ body.theme-mafia .form-control:focus {
   box-shadow: 0 0 0 4px rgba(166, 120, 47, .25);
 }
 
-body.theme-mafia .badge-commerce,
-body.theme-mafia .badge-nature {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+body.theme-mafia .btn-spotify {
+  background: #A6782F;
+  color: #12090D;
 }
 
-body.theme-mafia .note-type-badge.lieu {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
+body.theme-mafia .btn-spotify:hover {
+  background: #8F6625;
 }
 

@@ -222,14 +222,9 @@
   max-height: 200px;
   overflow-y: auto;
 }
-.diff-added   { background: #D1FAE5; color: #065F46; }
+.diff-added   { background: color-mix(in srgb, var(--success) 22%, transparent); color: var(--success); }
 .diff-removed { background: #FEE2E2; color: #991B1B; }
 .diff-same    { color: var(--gray-500); }
-
-body.theme-mafia .diff-added {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
-}
 
 /* ── Scene Corkboard ──────────────────────────────────────── */
 .cork-board-grid {
@@ -662,13 +657,8 @@ body.theme-mafia .diff-added {
   margin-bottom: 6px;
   font-size: 13px;
 }
-.epub-check.pass { background: #D1FAE5; color: #065F46; }
+.epub-check.pass { background: color-mix(in srgb, var(--success) 22%, transparent); color: var(--success); }
 .epub-check.fail { background: #FEE2E2; color: #991B1B; }
-
-body.theme-mafia .epub-check.pass {
-  background: rgba(166, 120, 47, .2);
-  color: #F5DEAA;
-}
 
 /* ── Checklist ────────────────────────────────────────────── */
 .checklist-score {
