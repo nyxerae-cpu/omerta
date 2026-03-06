@@ -32,8 +32,8 @@
       <p class="app-subtitle">Outil de worldbuilding pour romans</p>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <button class="btn btn-ghost" onclick="openBibliotheque()">📚 Bibliothèque</button>
-      <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">📲 Installer l'app</button>
+      <button class="btn btn-ghost" onclick="openBibliotheque()">Bibliothèque</button>
+      <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">Installer l'app</button>
       <button class="btn btn-secondary btn-new-universe">+ Nouvel univers</button>
       <button class="btn btn-primary btn-new-project">+ Nouveau projet</button>
     </div>
@@ -81,7 +81,7 @@
         <input type="text" id="global-search" class="form-control" placeholder="🔍 Rechercher (Ctrl+K)..." autocomplete="off" aria-label="Recherche globale" style="width:240px; padding:4px 8px;">
         <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
       </div>
-      <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">📚 Bibliothèque</button>
+      <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">Bibliothèque</button>
       <div class="dropdown" id="dropdown-container">
         <button class="btn btn-ghost dropdown-btn" onclick="toggleDropdown()">
           Changer de projet
@@ -295,7 +295,7 @@
         <!-- Merge bar -->
         <div id="scenes-merge-bar" class="scenes-merge-bar hidden">
           <span class="merge-count">0 scènes sélectionnées</span>
-          <button class="btn btn-primary btn-sm" onclick="mergeSelectedScenes()">🔀 Fusionner</button>
+          <button class="btn btn-primary btn-sm" onclick="mergeSelectedScenes()">Fusionner</button>
           <button class="btn btn-ghost btn-sm" onclick="scenesViewState.selected.clear();_updateMergeBar();renderScenes()">✕ Désélectionner</button>
         </div>
         <!-- Unassigned -->
@@ -341,7 +341,7 @@
 
             <!-- EPUB Métadonnées -->
             <div class="epub-meta-section">
-              <h4>📚 Métadonnées EPUB</h4>
+              <h4>Métadonnées EPUB</h4>
               <div class="form-row">
                 <div class="form-group">
                   <label for="epub-title">Titre</label>
@@ -381,18 +381,18 @@
 
             <!-- Actions avancées -->
             <div class="manuscrit-actions-grid" style="margin-top:16px">
-              <button class="btn btn-secondary" onclick="exportEPUB()">📥 Exporter EPUB</button>
-              <button class="btn btn-secondary" onclick="exportPDF()">🖨️ Exporter PDF</button>
-              <button class="btn btn-secondary" onclick="openEbookPreview()">👁️ Aperçu liseuse</button>
+              <button class="btn btn-secondary" onclick="exportEPUB()">Exporter EPUB</button>
+              <button class="btn btn-secondary" onclick="exportPDF()">Exporter PDF</button>
+              <button class="btn btn-secondary" onclick="openEbookPreview()">Aperçu liseuse</button>
               <button class="btn btn-secondary" onclick="validateEPUB()">✅ Valider EPUB</button>
-              <button class="btn btn-secondary" onclick="openPublicationChecklist()">📋 Checklist pub.</button>
-              <button class="btn btn-secondary" onclick="openPresentationMode()">🎭 Présentation</button>
-              <button class="btn btn-secondary" onclick="analyserProse()">📊 Stats prose</button>
-              <button class="btn btn-secondary" onclick="analyserCoherence()">🔍 Incohérences</button>
-              <button class="btn btn-secondary" onclick="runSpellcheck()">🔤 Orthographe</button>
-              <button class="btn btn-secondary" onclick="runGrammarCheck()">📝 Grammaire</button>
-              <button class="btn btn-secondary" onclick="detectEntitiesFromEditor()">🧠 Détecter entrées</button>
-              <button class="btn btn-secondary" onclick="openPaletteGenerator()">🎨 Palettes</button>
+              <button class="btn btn-secondary" onclick="openPublicationChecklist()">Checklist pub.</button>
+              <button class="btn btn-secondary" onclick="openPresentationMode()">Présentation</button>
+              <button class="btn btn-secondary" onclick="analyserProse()">Stats prose</button>
+              <button class="btn btn-secondary" onclick="analyserCoherence()">Incohérences</button>
+              <button class="btn btn-secondary" onclick="runSpellcheck()">Orthographe</button>
+              <button class="btn btn-secondary" onclick="runGrammarCheck()">Grammaire</button>
+              <button class="btn btn-secondary" onclick="detectEntitiesFromEditor()">Détecter entrées</button>
+              <button class="btn btn-secondary" onclick="openPaletteGenerator()">Palettes</button>
             </div>
 
             <!-- Stats manuscrit -->
@@ -406,7 +406,7 @@
         <div class="section-header">
           <h2>Playlists</h2>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary" onclick="openImportMusicModal()">🎵 Bibliothèque</button>
+            <button class="btn btn-secondary" onclick="openImportMusicModal()">Bibliothèque</button>
             <button class="btn btn-primary" onclick="openPlaylistModal()">+ Ajouter</button>
           </div>
         </div>
@@ -568,8 +568,8 @@
             </div>
             <div id="backup-status" class="settings-hint" style="margin-top:8px;font-size:13px;color:var(--gray-600)"></div>
             <div style="margin-top:12px">
-              <button class="btn btn-secondary" onclick="openBackupManager()">📦 Gérer les sauvegardes</button>
-              <button class="btn btn-secondary" style="margin-left:8px" onclick="createAdvancedBackup(state.currentProjectId).then(()=>showToast('Sauvegarde créée','success'))">💾 Sauvegarder maintenant</button>
+              <button class="btn btn-secondary" onclick="openBackupManager()">Gérer les sauvegardes</button>
+              <button class="btn btn-secondary" style="margin-left:8px" onclick="createAdvancedBackup(state.currentProjectId).then(()=>showToast('Sauvegarde créée','success'))">Sauvegarder maintenant</button>
             </div>
           </div>
           <div class="settings-card">
@@ -605,7 +605,7 @@
               <div style="font-size:11px;color:var(--primary-text);font-weight:600;margin-bottom:4px">TON CODE DE SYNC</div>
               <div style="display:flex;gap:8px;align-items:center">
                 <code id="sync-code-value" style="font-size:15px;letter-spacing:2px;color:var(--primary-dark);flex:1"></code>
-                <button class="btn btn-ghost btn-sm" onclick="syncCopyCode()">📋 Copier</button>
+                <button class="btn btn-ghost btn-sm" onclick="syncCopyCode()">Copier</button>
               </div>
             </div>
           </div>
@@ -615,7 +615,7 @@
             <p class="settings-hint" style="margin-bottom:12px">Vérifie automatiquement les incohérences (relations, timeline, liens cassés, POV manquants).</p>
             <div id="consistency-summary" class="settings-hint" style="margin-bottom:10px">Aucune analyse lancée.</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-              <button class="btn btn-secondary btn-sm" onclick="analyzeConsistencyNow()">🔎 Lancer l'analyse</button>
+              <button class="btn btn-secondary btn-sm" onclick="analyzeConsistencyNow()">Lancer l'analyse</button>
             </div>
             <div id="consistency-report" class="consistency-report"></div>
           </div>
@@ -624,9 +624,9 @@
             <h3>Outils techniques</h3>
             <p class="settings-hint" style="margin-bottom:12px">Ponts utilitaires pour partage mobile, version autonome et debug local.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-              <button class="btn btn-secondary btn-sm" onclick="openQrSharePage()">📱 Ouvrir QR de partage</button>
-              <button class="btn btn-secondary btn-sm" onclick="openStandaloneSnapshot()">🧪 Ouvrir version autonome</button>
-              <button class="btn btn-secondary btn-sm" onclick="showTunnelCommand()">🌐 Aide tunnel local</button>
+              <button class="btn btn-secondary btn-sm" onclick="openQrSharePage()">Ouvrir QR de partage</button>
+              <button class="btn btn-secondary btn-sm" onclick="openStandaloneSnapshot()">Ouvrir version autonome</button>
+              <button class="btn btn-secondary btn-sm" onclick="showTunnelCommand()">Aide tunnel local</button>
             </div>
             <div class="settings-hint">Le QR utilise l'URL courante et inclut le code Sync si disponible.</div>
           </div>
@@ -670,12 +670,12 @@
         <div class="journal-filters">
           <select id="journal-filter-cat" class="form-control" onchange="renderJournal()">
             <option value="">Toutes catégories</option>
-            <option value="idee">💡 Idée</option>
+            <option value="idee">Idée</option>
             <option value="session">✍️ Session écriture</option>
-            <option value="objectif">🎯 Objectif</option>
-            <option value="blocage">🔴 Blocage</option>
+            <option value="objectif">Objectif</option>
+            <option value="blocage">Blocage</option>
             <option value="resolution">✅ Résolution</option>
-            <option value="bilan">📊 Bilan</option>
+            <option value="bilan">Bilan</option>
           </select>
           <input type="text" id="journal-search" class="form-control" placeholder="🔍 Rechercher…" oninput="renderJournal()" style="flex:1">
         </div>
@@ -700,7 +700,7 @@
       </div>
     </div>
     <div id="biblio-actions-scenes" style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="openTemplateModal()">📋 Modèles</button>
+      <button class="btn btn-secondary" onclick="openTemplateModal()">Modèles</button>
       <button class="btn btn-secondary" onclick="openSnippetModal()">✂️ Snippets</button>
       <button class="btn btn-primary" onclick="openGlobalSceneModal()">+ Nouvelle scène globale</button>
     </div>
@@ -714,9 +714,9 @@
 
   <!-- Tabs -->
   <div class="biblio-tabs">
-    <button class="biblio-tab active" data-tab="scenes" onclick="switchBiblioTab('scenes')">🎬 Scènes</button>
-    <button class="biblio-tab" data-tab="music" onclick="switchBiblioTab('music')">🎵 Musique</button>
-    <button class="biblio-tab" data-tab="sections" onclick="switchBiblioTab('sections')">📁 Sections</button>
+    <button class="biblio-tab active" data-tab="scenes" onclick="switchBiblioTab('scenes')">Scènes</button>
+    <button class="biblio-tab" data-tab="music" onclick="switchBiblioTab('music')">Musique</button>
+    <button class="biblio-tab" data-tab="sections" onclick="switchBiblioTab('sections')">Sections</button>
   </div>
 
   <!-- Scenes tab content -->
@@ -925,11 +925,11 @@
     </div>
     <!-- Onglets horizontaux -->
     <div class="entity-tabs" id="char-tabs">
-      <button class="entity-tab active" data-tab="char-tab-identite" onclick="switchEntityTab('char-tabs','char-tab-identite')">👤 Identité</button>
+      <button class="entity-tab active" data-tab="char-tab-identite" onclick="switchEntityTab('char-tabs','char-tab-identite')">Identité</button>
       <button class="entity-tab" data-tab="char-tab-apparence" onclick="switchEntityTab('char-tabs','char-tab-apparence')">✨ Apparence</button>
-      <button class="entity-tab" data-tab="char-tab-psychologie" onclick="switchEntityTab('char-tabs','char-tab-psychologie')">🧠 Psychologie</button>
-      <button class="entity-tab" data-tab="char-tab-reseau" onclick="switchEntityTab('char-tabs','char-tab-reseau')">🔗 Réseau</button>
-      <button class="entity-tab" data-tab="char-tab-galerie" onclick="switchEntityTab('char-tabs','char-tab-galerie')">🖼️ Galerie</button>
+      <button class="entity-tab" data-tab="char-tab-psychologie" onclick="switchEntityTab('char-tabs','char-tab-psychologie')">Psychologie</button>
+      <button class="entity-tab" data-tab="char-tab-reseau" onclick="switchEntityTab('char-tabs','char-tab-reseau')">Réseau</button>
+      <button class="entity-tab" data-tab="char-tab-galerie" onclick="switchEntityTab('char-tabs','char-tab-galerie')">Galerie</button>
     </div>
     <div class="modal-body">
       <!-- ═══ Onglet Identité ═══ -->
@@ -1098,10 +1098,10 @@
     </div>
     <!-- Onglets horizontaux -->
     <div class="entity-tabs" id="loc-tabs">
-      <button class="entity-tab active" data-tab="loc-tab-identite" onclick="switchEntityTab('loc-tabs','loc-tab-identite')">📍 Identité</button>
-      <button class="entity-tab" data-tab="loc-tab-description" onclick="switchEntityTab('loc-tabs','loc-tab-description')">📝 Description</button>
-      <button class="entity-tab" data-tab="loc-tab-sensoriel" onclick="switchEntityTab('loc-tabs','loc-tab-sensoriel')">🎭 Détails sensoriels</button>
-      <button class="entity-tab" data-tab="loc-tab-galerie" onclick="switchEntityTab('loc-tabs','loc-tab-galerie')">🖼️ Galerie</button>
+      <button class="entity-tab active" data-tab="loc-tab-identite" onclick="switchEntityTab('loc-tabs','loc-tab-identite')">Identité</button>
+      <button class="entity-tab" data-tab="loc-tab-description" onclick="switchEntityTab('loc-tabs','loc-tab-description')">Description</button>
+      <button class="entity-tab" data-tab="loc-tab-sensoriel" onclick="switchEntityTab('loc-tabs','loc-tab-sensoriel')">Détails sensoriels</button>
+      <button class="entity-tab" data-tab="loc-tab-galerie" onclick="switchEntityTab('loc-tabs','loc-tab-galerie')">Galerie</button>
     </div>
     <div class="modal-body">
       <!-- ═══ Onglet Identité ═══ -->
@@ -1638,7 +1638,7 @@
         <div class="form-group">
           <label for="gs-affichage">Affichage</label>
           <select id="gs-affichage" class="form-control">
-            <option value="cards">🖼 Galerie</option>
+            <option value="cards">Galerie</option>
             <option value="liste">≡ Liste</option>
             <option value="tableau">⊞ Tableau</option>
           </select>
@@ -1661,7 +1661,7 @@
     </div>
     <div class="modal-footer">
       <div style="flex:1">
-        <button id="gs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteGlobalSectionConfirm()">🗑 Supprimer</button>
+        <button id="gs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteGlobalSectionConfirm()">Supprimer</button>
       </div>
       <button class="btn btn-ghost" onclick="closeModal('modal-global-section')">Annuler</button>
       <button class="btn btn-primary" onclick="saveGlobalSection()">Enregistrer</button>
@@ -1764,11 +1764,11 @@
         <div class="form-group">
           <label>Type</label>
           <select id="ev-type" class="form-control">
-            <option value="Rencontre">Rencontre 💫</option>
-            <option value="Naissance">Naissance 🍼</option>
-            <option value="Mort">Mort 🕊️</option>
+            <option value="Rencontre">Rencontre</option>
+            <option value="Naissance">Naissance</option>
+            <option value="Mort">Mort</option>
             <option value="Tournant">Tournant ⚡</option>
-            <option value="Découverte">Découverte 🔍</option>
+            <option value="Découverte">Découverte</option>
             <option value="Conflit">Conflit ⚔️</option>
             <option value="Résolution">Résolution ✅</option>
             <option value="Autre">Autre</option>
@@ -1832,7 +1832,7 @@
         <div class="form-group">
           <label for="cs-affichage">Affichage</label>
           <select id="cs-affichage" class="form-control">
-            <option value="cards">🖼 Galerie</option>
+            <option value="cards">Galerie</option>
             <option value="liste">≡ Liste</option>
             <option value="tableau">⊞ Tableau</option>
           </select>
@@ -1847,7 +1847,7 @@
     </div>
     <div class="modal-footer">
       <div style="flex:1">
-        <button id="cs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteCustomSectionConfirmFromModal()">🗑 Supprimer</button>
+        <button id="cs-delete-btn" class="btn btn-danger" style="display:none" onclick="deleteCustomSectionConfirmFromModal()">Supprimer</button>
       </div>
       <button class="btn btn-ghost" onclick="closeModal('modal-custom-section')">Annuler</button>
       <button class="btn btn-primary" onclick="saveCustomSection()">Enregistrer</button>
@@ -2230,11 +2230,11 @@
           <label for="jou-categorie">Catégorie</label>
           <select id="jou-categorie" class="form-control">
             <option value="session">✍️ Session écriture</option>
-            <option value="idee">💡 Idée</option>
-            <option value="objectif">🎯 Objectif</option>
-            <option value="blocage">🔴 Blocage</option>
+            <option value="idee">Idée</option>
+            <option value="objectif">Objectif</option>
+            <option value="blocage">Blocage</option>
             <option value="resolution">✅ Résolution</option>
-            <option value="bilan">📊 Bilan</option>
+            <option value="bilan">Bilan</option>
           </select>
         </div>
       </div>
@@ -2279,7 +2279,7 @@
     </div>
     <div class="modal-body">
       <div style="margin-bottom:12px;display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="createAdvancedBackup(state.currentProjectId).then(()=>{showToast('Sauvegarde créée','success');openBackupManager()})">💾 Nouvelle sauvegarde</button>
+        <button class="btn btn-primary" onclick="createAdvancedBackup(state.currentProjectId).then(()=>{showToast('Sauvegarde créée','success');openBackupManager()})">Nouvelle sauvegarde</button>
       </div>
       <div id="backup-manager-content"></div>
     </div>
@@ -2308,7 +2308,7 @@
         </select>
         <input type="text" id="tpl-desc" class="form-control" placeholder="Description courte…">
         <textarea id="tpl-contenu" class="form-control" rows="6" placeholder="Contenu du template…"></textarea>
-        <button class="btn btn-primary btn-sm" onclick="saveTemplate()">💾 Enregistrer</button>
+        <button class="btn btn-primary btn-sm" onclick="saveTemplate()">Enregistrer</button>
       </div>
       <hr>
       <h4 style="margin-bottom:8px;font-size:13px;color:var(--gray-600)">Templates disponibles</h4>
@@ -2332,7 +2332,7 @@
         <input type="text" id="snip-titre" class="form-control" placeholder="Titre du snippet *">
         <textarea id="snip-contenu" class="form-control" rows="3" placeholder="Contenu…"></textarea>
         <input type="text" id="snip-tags" class="form-control" placeholder="Tags (séparés par virgule)">
-        <button class="btn btn-primary btn-sm" onclick="saveSnippet()">💾 Enregistrer</button>
+        <button class="btn btn-primary btn-sm" onclick="saveSnippet()">Enregistrer</button>
       </div>
       <hr>
       <div id="snippets-list"></div>
@@ -2410,7 +2410,7 @@
         <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(13)">A-</button>
         <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(15)">A</button>
         <button class="btn btn-secondary btn-sm" onclick="ereaderSetFont(18)">A+</button>
-        <button class="btn btn-secondary btn-sm" onclick="ereaderToggleNight()">🌙 Nuit</button>
+        <button class="btn btn-secondary btn-sm" onclick="ereaderToggleNight()">Nuit</button>
       </div>
       <div id="ereader-content"></div>
       <div class="ereader-nav">
