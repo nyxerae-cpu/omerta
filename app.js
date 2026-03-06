@@ -5435,29 +5435,6 @@ function renderCustomSectionsSidebar() {
         <span class="nav-label">${esc(s.nom)}</span>
       </button>`).join('');
   }
-  html += `<div class="sidebar-separator"></div>
-    <div class="section-add-wrapper">
-      <button class="nav-item nav-create-section" onclick="toggleSectionAddMenu(event)">
-        <span class="nav-icon">➕</span>
-        <span class="nav-label">Ajouter section</span>
-      </button>
-      <div id="section-add-menu" class="section-add-menu hidden">
-        <button class="section-add-option" onclick="closeSectionAddMenu(); openCustomSectionModal()">
-          <span class="section-add-option-icon">✏️</span>
-          <div class="section-add-option-text">
-            <strong>Créer de zéro</strong>
-            <span>Créer une section personnalisée</span>
-          </div>
-        </button>
-        <button class="section-add-option" onclick="closeSectionAddMenu(); openImportSectionModal()">
-          <span class="section-add-option-icon">📚</span>
-          <div class="section-add-option-text">
-            <strong>Importer de la bibliothèque</strong>
-            <span>Choisir parmi les sections pré-créées</span>
-          </div>
-        </button>
-      </div>
-    </div>`;
   container.innerHTML = html;
 }
 
