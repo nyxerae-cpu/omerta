@@ -1879,13 +1879,28 @@ body { transition: background var(--transition), color var(--transition); }
    Custom Sections — Sidebar
    ============================================================ */
 .sidebar-separator {
-  padding: 20px 16px 4px;
-  font-size: 10px;
+  border: none;
+  border-top: 1.5px solid var(--gray-200);
+  margin: 12px 0 10px 0;
+  height: 0;
+  background: none;
+}
+.sidebar-group-label {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--gray-400);
+  margin: 14px 0 4px 10px;
   user-select: none;
+}
+.sidebar-codex-group,
+.sidebar-media-group,
+.sidebar-structure-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 2px;
 }
 .nav-create-section {
   display: flex;
