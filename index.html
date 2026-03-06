@@ -69,10 +69,6 @@
       <p class="app-subtitle">Outil de worldbuilding pour romans</p>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <div class="device-switch" role="group" aria-label="Choix de version d'affichage">
-        <button type="button" class="device-switch-btn" data-device-mode="phone" onclick="setDeviceModePreference('phone')">Version téléphone</button>
-        <button type="button" class="device-switch-btn" data-device-mode="desktop" onclick="setDeviceModePreference('desktop')">Version ordi</button>
-      </div>
       <button class="btn btn-ghost" onclick="openHubSettingsModal()">Paramètres</button>
       <button class="btn btn-ghost" onclick="openBibliotheque()">Bibliothèque</button>
       <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">Installer l'app</button>
@@ -192,10 +188,6 @@
       <h1 id="project-name-header" class="project-title"></h1>
     </div>
     <div class="header-right">
-      <div class="device-switch" role="group" aria-label="Choix de version d'affichage">
-        <button type="button" class="device-switch-btn" data-device-mode="phone" onclick="setDeviceModePreference('phone')">Téléphone</button>
-        <button type="button" class="device-switch-btn" data-device-mode="desktop" onclick="setDeviceModePreference('desktop')">Ordi</button>
-      </div>
       <div id="global-search-container" style="position:relative; margin-right:12px;">
         <input type="text" id="global-search" class="form-control" placeholder="Rechercher (Ctrl+K)..." autocomplete="off" aria-label="Recherche globale" style="width:240px; padding:4px 8px;">
         <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
@@ -660,14 +652,6 @@
               <label><input type="radio" name="fontSize" value="sm" onchange="saveAppearanceSettings()"> Petite</label><br>
               <label><input type="radio" name="fontSize" value="md" checked onchange="saveAppearanceSettings()"> Normale</label><br>
               <label><input type="radio" name="fontSize" value="lg" onchange="saveAppearanceSettings()"> Grande</label>
-            </div>
-            <div class="form-group" style="margin-top:16px;">
-              <label><strong>Version d'affichage</strong></label>
-              <div class="device-switch" role="group" aria-label="Version d'affichage app">
-                <button type="button" class="device-switch-btn" data-device-mode="phone" onclick="setDeviceModePreference('phone')">Version téléphone</button>
-                <button type="button" class="device-switch-btn" data-device-mode="desktop" onclick="setDeviceModePreference('desktop')">Version ordi</button>
-              </div>
-              <div class="settings-hint" style="margin-top:6px">Le choix est mémorisé pour ta future APK.</div>
             </div>
           </div>
           <div class="settings-card">
