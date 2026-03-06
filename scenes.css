@@ -271,6 +271,11 @@
 .badge-en-cours  { background: #FEF3C7; color: #92400E; }
 .badge-termine   { background: #D1FAE5; color: #065F46; }
 
+body.theme-mafia .badge-termine {
+  background: rgba(166, 120, 47, .2);
+  color: #F5DEAA;
+}
+
 .scene-card-meta {
   font-size: 12px;
   color: var(--gray-500);

@@ -2629,6 +2629,7 @@ body.theme-mafia {
   --primary-dark: #8F6625;
   --primary-light: #F2E3BB;
   --primary-text: #4A3312;
+  --success: #A6782F;
   --bg: #12090D;
   --white: #1B1216;
   --sidebar-bg: #140C10;
@@ -2724,5 +2725,16 @@ body.theme-mafia .form-control {
 
 body.theme-mafia .form-control:focus {
   box-shadow: 0 0 0 4px rgba(166, 120, 47, .25);
+}
+
+body.theme-mafia .badge-commerce,
+body.theme-mafia .badge-nature {
+  background: rgba(166, 120, 47, .2);
+  color: #F5DEAA;
+}
+
+body.theme-mafia .note-type-badge.lieu {
+  background: rgba(166, 120, 47, .2);
+  color: #F5DEAA;
 }
 
