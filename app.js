@@ -457,6 +457,101 @@ function getEffectiveAppearancePrefs(projectId = null) {
   };
 }
 
+function setAuthStatus(message, isError = false) {
+  const el = document.getElementById('auth-status');
+  if (!el) return;
+  el.textContent = `Statut: ${message}`;
+  el.style.color = isError ? 'var(--red-500)' : 'var(--gray-500)';
+}
+
+function prefillAuthFormFromPrefs() {
+  const cfg = getSupabaseSyncPrefs();
+  const urlInput = document.getElementById('auth-supa-url');
+  const anonInput = document.getElementById('auth-supa-anon');
+  if (urlInput && !urlInput.value) urlInput.value = cfg.url || '';
+  if (anonInput && !anonInput.value) anonInput.value = cfg.anonKey || '';
+}
+
+function showAuthPage(statusText = 'connexion requise') {
+  ['home-page', 'project-page', 'bibliotheque-page', 'chapter-editor-page', 'scene-editor-page'].forEach(id => {
+    document.getElementById(id)?.classList.add('hidden');
+  });
+  document.getElementById('auth-page')?.classList.remove('hidden');
+  document.body.style.overflow = '';
+  prefillAuthFormFromPrefs();
+  setAuthStatus(statusText, false);
+}
+
+function hideAuthPage() {
+  document.getElementById('auth-page')?.classList.add('hidden');
+}
+
+function authSaveSupabaseConfig() {
+  const url = (document.getElementById('auth-supa-url')?.value || '').trim();
+  const anonKey = (document.getElementById('auth-supa-anon')?.value || '').trim();
+  const appPrefs = getAppPrefs();
+  appPrefs.supabaseSync = { url, anonKey };
+  saveAppPrefs(appPrefs);
+  _supabaseClient = null;
+  setAuthStatus('configuration sauvegardée', false);
+  showToast('Config Supabase sauvegardée', 'success');
+}
+
+async function authSignUp() {
+  authSaveSupabaseConfig();
+  const email = (document.getElementById('auth-email')?.value || '').trim();
+  const password = document.getElementById('auth-password')?.value || '';
+  const client = _getSupabaseClient();
+  if (!client) { setAuthStatus('config Supabase invalide', true); showToast('Configure URL + clé Anon', 'error'); return; }
+  if (!email || !password) { setAuthStatus('email/mot de passe requis', true); showToast('Email + mot de passe requis', 'error'); return; }
+  setAuthStatus('création du compte en cours...', false);
+  const { error } = await client.auth.signUp({ email, password });
+  if (error) { setAuthStatus('erreur création compte', true); showToast('Signup Supabase: ' + error.message, 'error'); return; }
+  setAuthStatus('compte créé (vérifie ton email si demandé)', false);
+  showToast('Compte créé', 'success');
+}
+
+async function authSignIn() {
+  authSaveSupabaseConfig();
+  const email = (document.getElementById('auth-email')?.value || '').trim();
+  const password = document.getElementById('auth-password')?.value || '';
+  const client = _getSupabaseClient();
+  if (!client) { setAuthStatus('config Supabase invalide', true); showToast('Configure URL + clé Anon', 'error'); return; }
+  if (!email || !password) { setAuthStatus('email/mot de passe requis', true); showToast('Email + mot de passe requis', 'error'); return; }
+  setAuthStatus('connexion en cours...', false);
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) { setAuthStatus('erreur connexion', true); showToast('Login Supabase: ' + error.message, 'error'); return; }
+
+  setAuthStatus('connecté, récupération des données...', false);
+  const pulled = await supabasePullNow({ reloadAfter: false, showFeedback: true });
+  if (!pulled) setAuthStatus('connecté (pas de données cloud)', false);
+  hideAuthPage();
+  if (!location.hash || location.hash === '#/home' || location.hash === '#/auth') {
+    showHomePage();
+  } else {
+    _applyHashRoute();
+  }
+}
+
+async function enforceAuthGateOnStartup() {
+  const client = _getSupabaseClient();
+  if (!client) {
+    showAuthPage('configure Supabase puis connecte-toi');
+    return false;
+  }
+  const user = await _getSupabaseUser();
+  if (!user) {
+    showAuthPage('connecte-toi pour accéder à tes données');
+    return false;
+  }
+
+  hideAuthPage();
+  if (getProjects().length === 0 && getUniverses().length === 0) {
+    await supabasePullNow({ reloadAfter: false, showFeedback: false });
+  }
+  return true;
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
@@ -1195,6 +1290,7 @@ async function supabaseSignOutFromHub() {
   await client.auth.signOut();
   showToast('Déconnecté de Supabase', 'success');
   await refreshSupabaseStatusLabel();
+  showAuthPage('déconnecté, connexion requise');
 }
 
 async function supabasePushNow() {
@@ -1219,14 +1315,16 @@ async function supabasePushNow() {
   return true;
 }
 
-async function supabasePullNow() {
+async function supabasePullNow(options = {}) {
+  const reloadAfter = options.reloadAfter !== false;
+  const showFeedback = options.showFeedback !== false;
   const client = _getSupabaseClient();
   if (!client) { showToast('Supabase non configuré', 'error'); return false; }
   const user = await _getSupabaseUser();
   if (!user) { showToast('Connecte-toi à Supabase', 'error'); return false; }
 
   setSupabaseStatusLabel('pull en cours...');
-  showToast('Pull Supabase en cours...', 'success');
+  if (showFeedback) showToast('Pull Supabase en cours...', 'success');
 
   const { data, error } = await client
     .from('user_sync_data')
@@ -1235,22 +1333,22 @@ async function supabasePullNow() {
     .maybeSingle();
   if (error) {
     setSupabaseStatusLabel('erreur pull');
-    showToast('Pull Supabase: ' + error.message, 'error');
+    if (showFeedback) showToast('Pull Supabase: ' + error.message, 'error');
     return false;
   }
   if (!data || !data.payload) {
     setSupabaseStatusLabel('aucune donnée cloud');
-    showToast('Aucune donnée cloud pour ce compte', 'error');
+    if (showFeedback) showToast('Aucune donnée cloud pour ce compte', 'error');
     return false;
   }
   const entries = _extractTransferEntries(data.payload);
   if (!entries || !entries.length) {
     setSupabaseStatusLabel('payload cloud invalide');
-    showToast('Payload cloud invalide', 'error');
+    if (showFeedback) showToast('Payload cloud invalide', 'error');
     return false;
   }
   setSupabaseStatusLabel(`données cloud trouvées (${entries.length} clés)`);
-  const ok = _applyTransferEntriesTransaction(entries, { reloadAfter: true });
+  const ok = _applyTransferEntriesTransaction(entries, { reloadAfter });
   if (ok) setSupabaseStatusLabel('pull ok, rechargement...');
   return ok;
 }
@@ -4264,7 +4362,7 @@ function appendTimelineChunk(zoom) {
 }
 
 // add scroll listener once
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const container = document.getElementById('timeline-list');
   if (container) {
     container.addEventListener('scroll', () => {
@@ -4922,7 +5020,7 @@ function showConfirm(title, message, callback) {
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   perfState.lowPower = shouldUseLowPowerMode();
   purgeLegacyAssistantStorage();
   if (window.matchMedia) {
@@ -5086,11 +5184,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // apply appearance even before project selected (auto by default)
   applyAppearance(getEffectiveAppearancePrefs(state.currentProjectId));
-  // Route startup from hash
-  if (!location.hash) {
-    if (!restorePersistedRouteIfNeeded()) showHomePage();
-  } else {
-    _applyHashRoute();
+  // Mandatory auth gate at startup
+  const hasAccess = await enforceAuthGateOnStartup();
+  if (hasAccess) {
+    if (!location.hash || location.hash === '#/auth') {
+      if (!restorePersistedRouteIfNeeded()) showHomePage();
+    } else {
+      _applyHashRoute();
+    }
   }
   window.addEventListener('hashchange', _applyHashRoute);
 

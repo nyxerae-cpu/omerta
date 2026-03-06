@@ -24,6 +24,43 @@
 <body>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
 
+<!-- ===================== AUTH PAGE ===================== -->
+<div id="auth-page" class="page hidden">
+  <div class="home-header">
+    <div>
+      <h1 class="app-title">WorldBuilder</h1>
+      <p class="app-subtitle">Connexion requise pour charger tes données</p>
+    </div>
+  </div>
+  <div class="home-content" style="max-width:560px;margin:24px auto;">
+    <div style="background:var(--white);padding:16px;border-radius:10px;border:1px solid var(--gray-200)">
+      <h3 style="margin-bottom:12px">Connexion Cloud (Supabase)</h3>
+      <div class="form-group">
+        <label for="auth-supa-url">URL Supabase</label>
+        <input id="auth-supa-url" type="text" class="form-control" placeholder="https://xxxxx.supabase.co">
+      </div>
+      <div class="form-group">
+        <label for="auth-supa-anon">Clé Anon Supabase</label>
+        <input id="auth-supa-anon" type="password" class="form-control" placeholder="Clé anon publique">
+      </div>
+      <div class="form-group">
+        <label for="auth-email">Email</label>
+        <input id="auth-email" type="email" class="form-control" placeholder="email@exemple.com">
+      </div>
+      <div class="form-group">
+        <label for="auth-password">Mot de passe</label>
+        <input id="auth-password" type="password" class="form-control" placeholder="Mot de passe">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn btn-secondary" onclick="authSaveSupabaseConfig()">Sauver config</button>
+        <button class="btn btn-secondary" onclick="authSignUp()">Créer compte</button>
+        <button class="btn btn-primary" onclick="authSignIn()">Se connecter</button>
+      </div>
+      <div id="auth-status" class="settings-hint" style="margin-top:10px">Statut: en attente de connexion</div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== HOME PAGE ===================== -->
 <div id="home-page" class="page">
   <div class="home-header">
