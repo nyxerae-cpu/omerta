@@ -1334,7 +1334,7 @@ function switchBiblioTab(tab) {
 function getGlobalMusic() {
   return JSON.parse(localStorage.getItem('bibliotheque_globale_music') || '[]');
 }
-function saveGlobalMusic(list) {
+function saveGlobalMusicLibrary(list) {
   localStorage.setItem('bibliotheque_globale_music', JSON.stringify(list));
 }
 
@@ -1541,7 +1541,7 @@ function saveGlobalMusic() {
       if (audioData) item.audioData = audioData;
       if (imageData) item.image = imageData;
 
-      saveGlobalMusic(list);
+      saveGlobalMusicLibrary(list);
       closeModal('modal-global-music');
       showToast('Musique enregistrée', 'success');
       renderMusicLibrary();
@@ -1557,7 +1557,7 @@ function deleteGlobalMusicConfirm(musicId) {
     'Cette musique sera retirée de la bibliothèque globale.',
     () => {
       const list = getGlobalMusic().filter(x => x.id !== musicId);
-      saveGlobalMusic(list);
+      saveGlobalMusicLibrary(list);
       renderMusicLibrary();
       showToast('Musique supprimée', 'success');
     }
