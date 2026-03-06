@@ -412,32 +412,35 @@
    ============================================================ */
 .biblio-tabs {
   display: flex;
-  gap: 0;
+  gap: 8px;
   padding: 0 24px;
-  border-bottom: 2px solid var(--gray-200);
-  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  background: transparent;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .biblio-tab {
-  padding: 10px 20px;
+  padding: 9px 16px;
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-500);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  font-weight: 600;
+  color: var(--gray-700);
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
 .biblio-tab:hover {
-  color: var(--gray-700);
+  color: var(--gray-800);
+  background: var(--gray-100);
 }
 
 .biblio-tab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  color: var(--primary-text);
+  background: var(--primary-light);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--gray-300));
 }
 
 /* ============================================================

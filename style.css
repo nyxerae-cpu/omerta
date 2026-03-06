@@ -2416,6 +2416,100 @@ body.theme-saas .nav-item.active {
   border-color: rgba(37, 99, 235, .22);
 }
 
+/* ============================================================
+   EYE COMFORT REFINEMENT
+   ============================================================ */
+body {
+  line-height: 1.6;
+}
+
+body,
+.item-card-notes,
+.item-card-meta,
+.dashboard-desc,
+.settings-hint {
+  color: var(--gray-700);
+}
+
+.section-header h2,
+.item-card-title,
+.project-card-name,
+.chapter-title,
+.timeline-chap-title {
+  color: var(--gray-800);
+}
+
+.project-header,
+.home-header {
+  box-shadow: 0 4px 16px rgba(17, 24, 39, .06);
+}
+
+.nav-item {
+  color: var(--gray-700);
+  font-weight: 600;
+}
+.nav-item:hover {
+  color: var(--gray-800);
+}
+
+/* Premium tab style for entity editors */
+.entity-tabs {
+  background: transparent;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 8px 20px;
+  gap: 8px;
+}
+.entity-tab {
+  border: 1px solid var(--gray-300);
+  border-bottom: 1px solid var(--gray-300);
+  border-radius: 999px;
+  margin-bottom: 0;
+  padding: 9px 16px;
+  background: var(--white);
+  color: var(--gray-700);
+  font-weight: 600;
+}
+.entity-tab:hover {
+  background: var(--gray-100);
+  color: var(--gray-800);
+}
+.entity-tab.active {
+  background: var(--primary-light);
+  color: var(--primary-text);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--gray-300));
+  box-shadow: 0 2px 10px rgba(0,0,0,.05);
+}
+
+/* calmer backgrounds to reduce eye fatigue */
+body.theme-premium,
+body.theme-roman,
+body.theme-saas {
+  background-attachment: scroll;
+}
+
+body.dark-mode .form-control,
+body.dark-mode .btn-secondary,
+body.dark-mode .btn-ghost {
+  border-color: var(--gray-300);
+}
+body.dark-mode .item-card,
+body.dark-mode .settings-card,
+body.dark-mode .chapter-item,
+body.dark-mode .project-card {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .28);
+}
+
+@media (max-width: 768px) {
+  .entity-tabs {
+    padding: 6px 12px;
+    gap: 6px;
+  }
+  .entity-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
 /* explicit baseline for saved preference */
 body.theme-premium {
   --theme-marker: 1;
