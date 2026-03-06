@@ -102,6 +102,18 @@
           <input id="hub-transfer-file" type="file" accept="application/json" style="display:none" onchange="importAppTransferBundle(event)">
         </div>
       </div>
+      <hr>
+      <div class="form-group">
+        <label>Sync cloud (GitHub Gist)</label>
+        <p class="settings-hint" style="margin:6px 0 10px">Optionnel: crée un token GitHub (scope Gist), puis utilise Push/Pull pour retrouver tes données sur tous tes appareils.</p>
+        <input id="hub-sync-token" type="password" class="form-control" placeholder="Token GitHub (scope gist)" style="margin-bottom:8px">
+        <input id="hub-sync-gist-id" type="text" class="form-control" placeholder="Gist ID (auto rempli après 1er push)" style="margin-bottom:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="saveHubCloudSyncSettings()">Sauver config</button>
+          <button class="btn btn-secondary" onclick="pushCloudSyncNow()">Push cloud</button>
+          <button class="btn btn-secondary" onclick="pullCloudSyncNow()">Pull cloud</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-hub-settings')">Fermer</button>

@@ -899,10 +899,15 @@ function leaveUniverseGallery() {
 
 function openHubSettingsModal() {
   const prefs = getEffectiveAppearancePrefs(null);
+  const sync = getHubCloudSyncPrefs();
   const visualSel = document.getElementById('hub-theme-visual');
   const modeSel = document.getElementById('hub-theme-mode');
+  const tokenInput = document.getElementById('hub-sync-token');
+  const gistInput = document.getElementById('hub-sync-gist-id');
   if (visualSel) visualSel.value = prefs.visualTheme || 'mafia';
   if (modeSel) modeSel.value = prefs.appearance || 'auto';
+  if (tokenInput) tokenInput.value = sync.token || '';
+  if (gistInput) gistInput.value = sync.gistId || '';
   openModal('modal-hub-settings');
 }
 
@@ -916,6 +921,169 @@ function saveHubSettings() {
   applyAppearance(getEffectiveAppearancePrefs(state.currentProjectId));
   closeModal('modal-hub-settings');
   showToast('Thème de l\'app enregistré', 'success');
+}
+
+function getHubCloudSyncPrefs() {
+  const appPrefs = getAppPrefs();
+  const cloud = appPrefs.cloudSync;
+  if (!cloud || typeof cloud !== 'object') return { token: '', gistId: '' };
+  return {
+    token: typeof cloud.token === 'string' ? cloud.token : '',
+    gistId: typeof cloud.gistId === 'string' ? cloud.gistId : '',
+  };
+}
+
+function saveHubCloudSyncSettings() {
+  const token = (document.getElementById('hub-sync-token')?.value || '').trim();
+  const gistId = (document.getElementById('hub-sync-gist-id')?.value || '').trim();
+  const appPrefs = getAppPrefs();
+  appPrefs.cloudSync = { token, gistId };
+  saveAppPrefs(appPrefs);
+  showToast('Configuration cloud sauvegardée', 'success');
+}
+
+function _buildTransferPayload() {
+  return {
+    version: 'wb-transfer-1',
+    exportedAt: new Date().toISOString(),
+    app: 'WorldBuilder',
+    localStorage: _getTransferStorageSnapshot(),
+  };
+}
+
+function _extractTransferEntries(parsedPayload) {
+  if (!parsedPayload || parsedPayload.version !== 'wb-transfer-1' || typeof parsedPayload.localStorage !== 'object') {
+    return null;
+  }
+  return Object.entries(parsedPayload.localStorage)
+    .filter(([k, v]) => typeof k === 'string' && typeof v === 'string');
+}
+
+function _applyTransferEntriesTransaction(incomingEntries, options = {}) {
+  const reloadAfter = options.reloadAfter !== false;
+  if (!Array.isArray(incomingEntries) || incomingEntries.length === 0) {
+    showToast('Transfert vide ou invalide', 'error');
+    return false;
+  }
+
+  const previousSnapshot = _getTransferStorageSnapshot();
+  try {
+    _clearTransferStorageScope();
+    incomingEntries.forEach(([k, v]) => localStorage.setItem(k, v));
+    showToast(`Transfert importé (${incomingEntries.length} clés)`, 'success');
+    if (reloadAfter) setTimeout(() => location.reload(), 350);
+    return true;
+  } catch (writeErr) {
+    try {
+      _clearTransferStorageScope();
+      Object.entries(previousSnapshot).forEach(([k, v]) => {
+        if (typeof v === 'string') localStorage.setItem(k, v);
+      });
+    } catch (rollbackErr) {
+      console.error('Transfer rollback failed:', rollbackErr);
+    }
+    showToast('Import échoué: données restaurées. ' + (writeErr?.message || 'Erreur stockage'), 'error');
+    return false;
+  }
+}
+
+async function pushCloudSyncNow() {
+  saveHubCloudSyncSettings();
+  const { token, gistId } = getHubCloudSyncPrefs();
+  if (!token) {
+    showToast('Ajoute un token GitHub (scope gist)', 'error');
+    return;
+  }
+
+  const payloadText = JSON.stringify(_buildTransferPayload(), null, 2);
+  const headers = {
+    'Accept': 'application/vnd.github+json',
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    let nextGistId = gistId;
+    if (gistId) {
+      const r = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          files: { 'worldbuilder-sync.json': { content: payloadText } },
+        }),
+      });
+      if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    } else {
+      const r = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          description: 'WorldBuilder cloud sync',
+          public: false,
+          files: { 'worldbuilder-sync.json': { content: payloadText } },
+        }),
+      });
+      if (!r.ok) throw new Error(`GitHub ${r.status}`);
+      const created = await r.json();
+      nextGistId = created && created.id ? created.id : '';
+      if (!nextGistId) throw new Error('Gist ID introuvable');
+      const appPrefs = getAppPrefs();
+      appPrefs.cloudSync = { token, gistId: nextGistId };
+      saveAppPrefs(appPrefs);
+      const gistInput = document.getElementById('hub-sync-gist-id');
+      if (gistInput) gistInput.value = nextGistId;
+    }
+    showToast('Sync cloud envoyé', 'success');
+  } catch (err) {
+    showToast('Push cloud échoué: ' + err.message, 'error');
+  }
+}
+
+async function pullCloudSyncNow() {
+  saveHubCloudSyncSettings();
+  const { token, gistId } = getHubCloudSyncPrefs();
+  if (!token || !gistId) {
+    showToast('Renseigne token + gist ID', 'error');
+    return;
+  }
+
+  const headers = {
+    'Accept': 'application/vnd.github+json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  try {
+    const r = await fetch(`https://api.github.com/gists/${gistId}`, { headers });
+    if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    const gist = await r.json();
+    const fileObj = gist?.files?.['worldbuilder-sync.json'];
+    if (!fileObj) throw new Error('Fichier worldbuilder-sync.json absent du gist');
+
+    let content = fileObj.content || '';
+    if (fileObj.truncated && fileObj.raw_url) {
+      const rr = await fetch(fileObj.raw_url);
+      if (!rr.ok) throw new Error('Lecture raw gist impossible');
+      content = await rr.text();
+    }
+
+    const parsed = JSON.parse(String(content || '{}'));
+    const incomingEntries = _extractTransferEntries(parsed);
+    if (!incomingEntries || incomingEntries.length === 0) {
+      showToast('Contenu cloud invalide ou vide', 'error');
+      return;
+    }
+
+    showConfirm(
+      'Importer depuis le cloud ? ',
+      'Les données locales actuelles seront remplacées sur cet appareil.',
+      () => {
+        closeModal('modal-confirm');
+        _applyTransferEntriesTransaction(incomingEntries, { reloadAfter: true });
+      }
+    );
+  } catch (err) {
+    showToast('Pull cloud échoué: ' + err.message, 'error');
+  }
 }
 
 function triggerImportAppTransferBundle() {
@@ -954,12 +1122,7 @@ function _clearTransferStorageScope() {
 }
 
 function exportAppTransferBundle() {
-  const payload = {
-    version: 'wb-transfer-1',
-    exportedAt: new Date().toISOString(),
-    app: 'WorldBuilder',
-    localStorage: _getTransferStorageSnapshot(),
-  };
+  const payload = _buildTransferPayload();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -980,7 +1143,8 @@ function importAppTransferBundle(event) {
   reader.onload = e => {
     try {
       const parsed = JSON.parse(String(e.target.result || '{}'));
-      if (!parsed || parsed.version !== 'wb-transfer-1' || typeof parsed.localStorage !== 'object') {
+      const incomingEntries = _extractTransferEntries(parsed);
+      if (!incomingEntries) {
         showToast('Fichier de transfert invalide', 'error');
         return;
       }
@@ -989,35 +1153,8 @@ function importAppTransferBundle(event) {
         'Importer ce transfert ? ',
         'Les données locales actuelles seront remplacées sur cet appareil.',
         () => {
-          const incomingEntries = Object.entries(parsed.localStorage)
-            .filter(([k, v]) => typeof k === 'string' && typeof v === 'string');
-
-          if (incomingEntries.length === 0) {
-            closeModal('modal-confirm');
-            showToast('Transfert vide ou invalide', 'error');
-            return;
-          }
-
-          // Transaction-like import: keep previous snapshot to rollback if a write fails.
-          const previousSnapshot = _getTransferStorageSnapshot();
-          try {
-            _clearTransferStorageScope();
-            incomingEntries.forEach(([k, v]) => localStorage.setItem(k, v));
-            closeModal('modal-confirm');
-            showToast(`Transfert importé (${incomingEntries.length} clés), rechargement…`, 'success');
-            setTimeout(() => location.reload(), 350);
-          } catch (writeErr) {
-            try {
-              _clearTransferStorageScope();
-              Object.entries(previousSnapshot).forEach(([k, v]) => {
-                if (typeof v === 'string') localStorage.setItem(k, v);
-              });
-            } catch (rollbackErr) {
-              console.error('Transfer rollback failed:', rollbackErr);
-            }
-            closeModal('modal-confirm');
-            showToast('Import échoué: données restaurées. ' + (writeErr?.message || 'Erreur stockage'), 'error');
-          }
+          closeModal('modal-confirm');
+          _applyTransferEntriesTransaction(incomingEntries, { reloadAfter: true });
         }
       );
     } catch (err) {
