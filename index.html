@@ -36,6 +36,7 @@
         <button type="button" class="device-switch-btn" data-device-mode="phone" onclick="setDeviceModePreference('phone')">Version téléphone</button>
         <button type="button" class="device-switch-btn" data-device-mode="desktop" onclick="setDeviceModePreference('desktop')">Version ordi</button>
       </div>
+      <button class="btn btn-ghost" onclick="openHubSettingsModal()">Paramètres</button>
       <button class="btn btn-ghost" onclick="openBibliotheque()">Bibliothèque</button>
       <button id="install-app-btn" class="btn btn-secondary hidden" onclick="installPWA()" aria-label="Installer l'application">Installer l'app</button>
       <button class="btn btn-secondary btn-new-universe">+ Nouvel univers</button>
@@ -64,6 +65,47 @@
       <h3>Aucun projet pour l'instant</h3>
       <p>Commencez par créer votre premier projet.</p>
       <button class="btn btn-primary btn-new-project" style="margin-top:16px">+ Créer un projet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HUB SETTINGS MODAL ===================== -->
+<div id="modal-hub-settings" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Paramètres du hub</h3>
+      <button class="modal-close" onclick="closeModal('modal-hub-settings')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="hub-theme-visual">Thème de l'app</label>
+        <select id="hub-theme-visual" class="form-control">
+          <option value="mafia">Mafia (bordeaux/noir/doré)</option>
+          <option value="foret">Forte (rouge/noir/doré)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="hub-theme-mode">Mode d'affichage</label>
+        <select id="hub-theme-mode" class="form-control">
+          <option value="auto">Auto</option>
+          <option value="light">Clair</option>
+          <option value="dark">Sombre</option>
+        </select>
+      </div>
+      <hr>
+      <div class="form-group">
+        <label>Transfert multi-appareils</label>
+        <p class="settings-hint" style="margin:6px 0 10px">Exporte tout (projets, univers, bibliothèques, préférences), puis importe sur ton autre appareil.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="exportAppTransferBundle()">Exporter toutes les données</button>
+          <button class="btn btn-secondary" onclick="triggerImportAppTransferBundle()">Importer un transfert</button>
+          <input id="hub-transfer-file" type="file" accept="application/json" style="display:none" onchange="importAppTransferBundle(event)">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-hub-settings')">Fermer</button>
+      <button class="btn btn-primary" onclick="saveHubSettings()">Enregistrer</button>
     </div>
   </div>
 </div>

@@ -420,6 +420,43 @@ function saveProjectPrefs(projectId, prefs) {
   }
 }
 
+function getAppPrefs() {
+  try {
+    const raw = localStorage.getItem('wb_app_prefs');
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (err) {
+    console.warn('App prefs parse failed:', err);
+    return {};
+  }
+}
+
+function saveAppPrefs(prefs) {
+  try {
+    localStorage.setItem('wb_app_prefs', JSON.stringify(prefs || {}));
+  } catch (err) {
+    console.error('App prefs write failed:', err);
+    if (typeof showToast === 'function') showToast('Stockage plein: impossible de sauvegarder les preferences app', 'error');
+  }
+}
+
+function getEffectiveAppearancePrefs(projectId = null) {
+  const appPrefs = getAppPrefs();
+  const projectPrefs = projectId ? getProjectPrefs(projectId) : {};
+  const visualTheme = projectPrefs.visualTheme || appPrefs.visualTheme || 'mafia';
+  const mode = projectPrefs.appearance || appPrefs.appearance || 'auto';
+  const density = projectPrefs.density || appPrefs.density || 'comfortable';
+  const fontSize = projectPrefs.fontSize || appPrefs.fontSize || 'md';
+  const accent = visualTheme === 'mafia' ? '#7D1734' : '#A6782F';
+  return {
+    appearance: mode,
+    density,
+    fontSize,
+    visualTheme,
+    accent,
+  };
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
@@ -704,6 +741,7 @@ function showHomePage(options = {}) {
   document.getElementById('project-page').classList.remove('page-mode');
   if (!skipHash && location.hash !== '#/home') location.hash = '#/home';
   renderProjectCards();
+  applyAppearance(getEffectiveAppearancePrefs(null));
   if (deferredInstallPrompt && !isRunningStandalone()) setInstallButtonVisible(true);
 }
 
@@ -859,6 +897,115 @@ function leaveUniverseGallery() {
   showHomePage();
 }
 
+function openHubSettingsModal() {
+  const prefs = getEffectiveAppearancePrefs(null);
+  const visualSel = document.getElementById('hub-theme-visual');
+  const modeSel = document.getElementById('hub-theme-mode');
+  if (visualSel) visualSel.value = prefs.visualTheme || 'mafia';
+  if (modeSel) modeSel.value = prefs.appearance || 'auto';
+  openModal('modal-hub-settings');
+}
+
+function saveHubSettings() {
+  const visualTheme = document.getElementById('hub-theme-visual')?.value || 'mafia';
+  const appearance = document.getElementById('hub-theme-mode')?.value || 'auto';
+  const appPrefs = getAppPrefs();
+  appPrefs.visualTheme = visualTheme;
+  appPrefs.appearance = appearance;
+  saveAppPrefs(appPrefs);
+  applyAppearance(getEffectiveAppearancePrefs(state.currentProjectId));
+  closeModal('modal-hub-settings');
+  showToast('Thème de l\'app enregistré', 'success');
+}
+
+function triggerImportAppTransferBundle() {
+  const input = document.getElementById('hub-transfer-file');
+  if (!input) return;
+  input.value = '';
+  input.click();
+}
+
+function _getTransferStorageSnapshot() {
+  const keepExact = new Set(['projets_liste', 'univers_liste']);
+  const keepPrefixes = ['projet_', 'univers_', 'bibliotheque_', 'wb_'];
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (keepExact.has(key) || keepPrefixes.some(prefix => key.startsWith(prefix))) {
+      data[key] = localStorage.getItem(key);
+    }
+  }
+  return data;
+}
+
+function _clearTransferStorageScope() {
+  const keepExact = new Set(['projets_liste', 'univers_liste']);
+  const keepPrefixes = ['projet_', 'univers_', 'bibliotheque_', 'wb_'];
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (keepExact.has(key) || keepPrefixes.some(prefix => key.startsWith(prefix))) {
+      keys.push(key);
+    }
+  }
+  keys.forEach(k => localStorage.removeItem(k));
+}
+
+function exportAppTransferBundle() {
+  const payload = {
+    version: 'wb-transfer-1',
+    exportedAt: new Date().toISOString(),
+    app: 'WorldBuilder',
+    localStorage: _getTransferStorageSnapshot(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `worldbuilder_transfer_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Transfert exporté', 'success');
+}
+
+function importAppTransferBundle(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(String(e.target.result || '{}'));
+      if (!parsed || parsed.version !== 'wb-transfer-1' || typeof parsed.localStorage !== 'object') {
+        showToast('Fichier de transfert invalide', 'error');
+        return;
+      }
+
+      showConfirm(
+        'Importer ce transfert ? ',
+        'Les données locales actuelles seront remplacées sur cet appareil.',
+        () => {
+          _clearTransferStorageScope();
+          Object.entries(parsed.localStorage).forEach(([k, v]) => {
+            if (typeof v === 'string') localStorage.setItem(k, v);
+          });
+          closeModal('modal-confirm');
+          showToast('Transfert importé, rechargement…', 'success');
+          setTimeout(() => location.reload(), 350);
+        }
+      );
+    } catch (err) {
+      showToast('Import impossible: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 // ============================================================
 // HOME PAGE SEARCH
 // ============================================================
@@ -1008,7 +1155,7 @@ function openProject(projectId, initialSection = 'dashboard', skipHash = false) 
   navigateTo(initialSection || 'dashboard', { skipHash });
 
   // appearance and backup
-  const prefs = getProjectPrefs(projectId);
+  const prefs = getEffectiveAppearancePrefs(projectId);
   applyAppearance(prefs);
   checkAutoBackup();
   checkBackupAge(projectId);
@@ -2646,7 +2793,7 @@ function renderSettings() {
   document.getElementById('settings-project-name').value = project.name;
   document.getElementById('settings-project-desc').value = project.description || '';
   // appearance prefs
-  const prefs = getProjectPrefs(state.currentProjectId) || {};
+  const prefs = getEffectiveAppearancePrefs(state.currentProjectId) || {};
   // mode
   const mode = prefs.appearance || 'auto';
   const modeEl = document.querySelector(`input[name=\"appearance\"][value=\"${mode}\"]`);
@@ -3296,7 +3443,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // ---------- Auto backup ----------
 function updateBackupStatus() {
-  const prefs = getProjectPrefs(state.currentProjectId) || {};
+  const prefs = getEffectiveAppearancePrefs(state.currentProjectId) || {};
   const statusEl = document.getElementById('backup-status');
   if (!statusEl) return;
   if (prefs.lastBackup) {
@@ -4043,7 +4190,7 @@ function renderSettings() {
   const fsEl = document.querySelector(`input[name="fontSize"][value="${fs}"]`);
   if (fsEl) fsEl.checked = true;
 
-  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'foret';
+  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'mafia';
   const visualThemeEl = document.getElementById('appearance-visual-theme');
   if (visualThemeEl) visualThemeEl.value = prefs.visualTheme;
 
@@ -4065,7 +4212,7 @@ function renderSettings() {
   navigateTo = function(section, options) {
     orig(section, options);
     if (section==='parametres') renderSettings();
-    const prefs = getProjectPrefs(state.currentProjectId);
+    const prefs = getEffectiveAppearancePrefs(state.currentProjectId);
     applyAppearance(prefs);
     checkAutoBackup();
   };
@@ -4585,7 +4732,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (relFilter) relFilter.addEventListener('change', renderRelations);
 
   // apply appearance even before project selected (auto by default)
-  applyAppearance(getProjectPrefs(state.currentProjectId));
+  applyAppearance(getEffectiveAppearancePrefs(state.currentProjectId));
   // Route startup from hash
   if (!location.hash) {
     if (!restorePersistedRouteIfNeeded()) showHomePage();
