@@ -65,7 +65,7 @@ function restorePersistedRouteIfNeeded() {
   if ((location.hash || '').trim()) return false;
   if (state.currentProjectId) return false;
   const persistedHash = getPersistedRoute();
-  if (!persistedHash || persistedHash === '#/home') return false;
+  if (!persistedHash || persistedHash === '#/home' || persistedHash === '#/auth') return false;
   state.suppressHashRouting = true;
   location.hash = persistedHash;
   setTimeout(() => { state.suppressHashRouting = false; _applyHashRoute(); }, 0);
@@ -544,13 +544,19 @@ async function authSignIn() {
 async function enforceAuthGateOnStartup() {
   const client = _getSupabaseClient();
   if (!client) {
-    showAuthPage('configure Supabase puis connecte-toi');
-    return false;
+    // Fallback to local/offline mode when Supabase is not configured.
+    state.authUnlocked = true;
+    hideAuthPage();
+    setAuthStatus('mode local (Supabase non configuré)', false);
+    return true;
   }
   const user = await _getSupabaseUser();
   if (!user) {
-    showAuthPage('connecte-toi pour accéder à tes données');
-    return false;
+    // Do not block the app: user can still work locally without cloud login.
+    state.authUnlocked = true;
+    hideAuthPage();
+    setAuthStatus('mode local (non connecté)', false);
+    return true;
   }
 
   hideAuthPage();
@@ -1800,6 +1806,10 @@ function _applyHashRoute() {
   const route = _parseHashRoute();
   if (!route) return;
   if (route.type === 'auth') {
+    if (state.authUnlocked) {
+      showHomePage({ skipHash: true });
+      return;
+    }
     showAuthPage('connecte-toi pour continuer');
     return;
   }
