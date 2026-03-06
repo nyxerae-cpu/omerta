@@ -2177,6 +2177,7 @@ function renderRelationsMatrix(list) {
   const chars = getCharactersForProject(state.currentProjectId, true);
   const el = document.getElementById('relations-list');
   if (!el || chars.length === 0) { if (el) el.innerHTML = '<em>Aucun personnage.</em>'; return; }
+  const isMafiaTheme = document.body.classList.contains('theme-mafia');
 
   // Build lookup: "idA|idB" -> relation
   const relMap = {};
@@ -2187,7 +2188,7 @@ function renderRelationsMatrix(list) {
 
   const TYPE_COLORS = {
     'Amour/Romance':    '#ec4899',
-    'Amitié':           '#22c55e',
+    'Amitié':           isMafiaTheme ? '#A6782F' : '#22c55e',
     'Famille':          '#f59e0b',
     'Frère/Sœur':       '#f97316',
     'Conflit/Ennemis':  '#ef4444',

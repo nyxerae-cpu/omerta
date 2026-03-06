@@ -171,6 +171,14 @@ const JOURNAL_CATEGORIES = [
   { value: 'bilan',    label: '📊 Bilan',              color: '#8B5CF6' },
 ];
 
+function isMafiaThemeEnabled() {
+  return document.body.classList.contains('theme-mafia');
+}
+
+function getSuccessTone() {
+  return isMafiaThemeEnabled() ? '#A6782F' : '#10B981';
+}
+
 function renderJournal() {
   const entries  = getJournalEntries();
   const searchQ  = document.getElementById('journal-search')?.value?.toLowerCase() || '';
@@ -201,11 +209,14 @@ function renderJournal() {
 
   el.innerHTML = list.map(e => {
     const cat   = JOURNAL_CATEGORIES.find(c => c.value === e.categorie) || JOURNAL_CATEGORIES[0];
+    const catColor = isMafiaThemeEnabled() && (cat.value === 'session' || cat.value === 'resolution')
+      ? '#A6782F'
+      : cat.color;
     const dStr  = new Date(e.date).toLocaleDateString('fr', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
     return `
-      <div class="journal-entry" style="border-left-color:${cat.color}">
+      <div class="journal-entry" style="border-left-color:${catColor}">
         <div class="journal-entry-header">
-          <span class="journal-cat" style="background:${cat.color}20;color:${cat.color}">${cat.label}</span>
+          <span class="journal-cat" style="background:${catColor}20;color:${catColor}">${cat.label}</span>
           <span class="journal-date">${dStr}</span>
           ${e.mood ? `<span class="journal-mood">${e.mood}</span>` : ''}
         </div>
@@ -554,7 +565,7 @@ function analyserCoherence() {
   if (!el) return;
 
   if (!issues.length) {
-    el.innerHTML = '<div style="color:#10B981;font-size:14px;padding:16px">✅ Aucune incohérence détectée !</div>';
+    el.innerHTML = `<div style="color:${getSuccessTone()};font-size:14px;padding:16px">✅ Aucune incohérence détectée !</div>`;
   } else {
     const icons = { error: '🔴', warning: '⚠️', info: 'ℹ️' };
     el.innerHTML = `
@@ -1137,7 +1148,7 @@ function renderManuscriptStats() {
       ${chapData.filter(c => c.words > 6000).map(c =>
         `<div class="manu-alert warning">⚠️ ${c.label} très long (${c.words} mots)</div>`).join('')}
       ${!chapData.filter(c => c.words < 1000 || c.words > 6000).length ?
-        '<div style="color:#10B981;font-size:13px">✅ Toutes les longueurs semblent équilibrées.</div>' : ''}
+        `<div style="color:${getSuccessTone()};font-size:13px">✅ Toutes les longueurs semblent équilibrées.</div>` : ''}
     </div>`;
 }
 
@@ -1173,9 +1184,10 @@ function validateEPUB() {
   const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 100);
   const el = document.getElementById('epub-validation-results');
   if (!el) return;
+  const okColor = getSuccessTone();
 
   el.innerHTML = `
-    <div class="epub-score" style="color:${score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444'}">
+    <div class="epub-score" style="color:${score >= 80 ? okColor : score >= 50 ? '#F59E0B' : '#EF4444'}">
       Score : ${score}/100
     </div>
     ${checks.map(c => `
@@ -1469,7 +1481,7 @@ function _renderSpellcheckResults(mode = 'orthographe') {
     const okMsg = mode === 'grammaire'
       ? '✅ Aucune anomalie grammaticale détectée !'
       : '✅ Aucune erreur détectée !';
-    el.innerHTML = `<div style="color:#10B981">${okMsg}</div>`;
+    el.innerHTML = `<div style="color:${getSuccessTone()}">${okMsg}</div>`;
     openModal('modal-spellcheck');
     return;
   }
@@ -1562,7 +1574,7 @@ function detectEntitiesFromEditor() {
   if (!el) return;
 
   if (!candidates.length) {
-    el.innerHTML = '<div style="color:#10B981">Aucune nouvelle entree detectee automatiquement.</div>';
+    el.innerHTML = `<div style="color:${getSuccessTone()}">Aucune nouvelle entree detectee automatiquement.</div>`;
     openModal('modal-spellcheck');
     return;
   }

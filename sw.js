@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'wb-cache-v7';
+const CACHE_VERSION = 'wb-cache-v8';
 const APP_SHELL = [
     './',
     './index.html',
