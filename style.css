@@ -2428,6 +2428,7 @@ body,
 }
 
 /* calmer backgrounds to reduce eye fatigue */
+body.theme-foret,
 body.theme-premium {
   background-attachment: scroll;
 }
@@ -2615,7 +2616,55 @@ body {
 }
 
 /* explicit baseline for saved preference */
+body.theme-foret,
 body.theme-premium {
   --theme-marker: 1;
+}
+
+/* ============================================================
+   MAFIA VISUAL THEME (bordeaux / noir / dore)
+   ============================================================ */
+body.theme-mafia {
+  --primary: #A6782F;
+  --primary-dark: #8F6625;
+  --primary-light: #F2E3BB;
+  --primary-text: #4A3312;
+  --bg: #12090D;
+  --white: #1B1216;
+  --sidebar-bg: #140C10;
+  --gray-100: #24151B;
+  --gray-200: #3A222C;
+  --gray-300: #57303E;
+  --gray-400: #7A4D5E;
+  --gray-500: #B7937C;
+  --gray-600: #D1B6A1;
+  --gray-700: #E7D4C4;
+  --gray-800: #F8EBDD;
+  --shadow-sm: 0 4px 10px rgba(0, 0, 0, .35);
+  --shadow: 0 10px 24px rgba(0, 0, 0, .42);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, .52);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, .62);
+  background:
+    radial-gradient(1200px 560px at -10% -20%, rgba(125, 23, 52, .38), transparent 60%),
+    radial-gradient(850px 420px at 100% 0%, rgba(166, 120, 47, .16), transparent 55%),
+    linear-gradient(180deg, #12090D 0%, #0B0508 100%);
+}
+
+body.theme-mafia.dark-mode {
+  --bg: #090407;
+  --white: #12090D;
+  --sidebar-bg: #0D0609;
+  --gray-100: #170B10;
+  --gray-200: #2A1420;
+  --gray-300: #411E2D;
+  --gray-400: #653244;
+  --gray-500: #B48C74;
+  --gray-600: #D2B8A3;
+  --gray-700: #E9D8C9;
+  --gray-800: #FBF1E7;
+}
+
+body.theme-mafia {
+  --theme-marker: 2;
 }
 

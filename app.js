@@ -2568,9 +2568,54 @@ function deleteChapterConfirm(chapId) {
 // ============================================================
 // SETTINGS
 // ============================================================
+function ensureVisualThemeControls() {
+  if (document.getElementById('appearance-visual-theme')) return;
+  const accentInput = document.getElementById('appearance-accent');
+  const anchor = accentInput ? accentInput.closest('.form-group') : null;
+  const appearanceCard = (anchor && anchor.parentElement)
+    || document.querySelector('#section-parametres .settings-card:nth-child(2)')
+    || document.querySelector('#section-parametres .settings-card');
+  if (!appearanceCard) return;
+
+  const block = document.createElement('div');
+  block.className = 'form-group';
+  block.style.marginTop = '16px';
+  block.innerHTML = `
+    <label><strong>Direction visuelle</strong></label>
+    <select id="appearance-visual-theme" class="form-control" style="margin-top:6px" onchange="saveAppearanceSettings()">
+      <option value="foret">Forte</option>
+      <option value="mafia">Mafia</option>
+    </select>
+    <div class="settings-hint" style="margin-top:6px">Choisis entre Forte (vert naturel) et Mafia (bordeaux/noir/dore)</div>
+  `;
+
+  if (anchor && anchor.parentElement) {
+    anchor.parentElement.insertBefore(block, anchor.nextSibling);
+  } else {
+    appearanceCard.appendChild(block);
+  }
+}
+
+function removeAccentControls() {
+  const accentInput = document.getElementById('appearance-accent');
+  if (accentInput) {
+    const group = accentInput.closest('.form-group');
+    if (group) group.remove();
+    else accentInput.remove();
+  }
+  const presets = document.getElementById('accent-presets');
+  if (presets) {
+    const wrap = presets.closest('.form-group');
+    if (wrap) wrap.remove();
+    else presets.remove();
+  }
+}
+
 function renderSettings() {
   const project = getProjects().find(p => p.id === state.currentProjectId);
   if (!project) return;
+  ensureVisualThemeControls();
+  removeAccentControls();
   document.getElementById('settings-project-name').value = project.name;
   document.getElementById('settings-project-desc').value = project.description || '';
   // appearance prefs
@@ -2579,8 +2624,6 @@ function renderSettings() {
   const mode = prefs.appearance || 'auto';
   const modeEl = document.querySelector(`input[name=\"appearance\"][value=\"${mode}\"]`);
   if (modeEl) modeEl.checked = true;
-  // accent
-  if (prefs.accent) document.getElementById('appearance-accent').value = prefs.accent;
   // density
   const density = prefs.density || 'comfortable';
   const denEl = document.querySelector(`input[name=\"density\"][value=\"${density}\"]`);
@@ -2589,21 +2632,9 @@ function renderSettings() {
   const fs = prefs.fontSize || 'md';
   const fsEl = document.querySelector(`input[name=\"fontSize\"][value=\"${fs}\"]`);
   if (fsEl) fsEl.checked = true;
-  prefs.visualTheme = 'premium';
-  // render accent presets
-  const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
-  const presetContainer = document.getElementById('accent-presets');
-  if (presetContainer) {
-    presetContainer.innerHTML = '';
-    presets.forEach(c => {
-      const b = document.createElement('button');
-      b.className = 'btn-icon';
-      b.style.background = c;
-      b.title = c;
-      b.onclick = () => { document.getElementById('appearance-accent').value = c; saveAppearanceSettings(); };
-      presetContainer.appendChild(b);
-    });
-  }
+  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'foret';
+  const visualThemeEl = document.getElementById('appearance-visual-theme');
+  if (visualThemeEl) visualThemeEl.value = prefs.visualTheme;
 }
 
 function saveProjectSettings() {
@@ -3182,12 +3213,6 @@ function applyAppearance(prefs) {
   if (mode === 'dark') dark = true;
   else if (mode === 'auto') dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   document.body.classList.toggle('dark-mode', dark);
-  // accent color
-  if (prefs && prefs.accent) {
-    document.documentElement.style.setProperty('--primary', prefs.accent);
-    // also adjust primary-dark slightly if not present
-    document.documentElement.style.setProperty('--primary-dark', prefs.accent);
-  }
   // density (compact / comfortable / spacious)
   ['density-compact','density-comfortable','density-spacious'].forEach(c => document.body.classList.remove(c));
   const density = (prefs && prefs.density) || 'comfortable';
@@ -3196,9 +3221,19 @@ function applyAppearance(prefs) {
   document.body.classList.remove('font-sm','font-md','font-lg');
   const fs = (prefs && prefs.fontSize) || 'md';
   document.body.classList.add(`font-${fs}`);
-  // keep only premium visual direction
-  document.body.classList.remove('theme-premium', 'theme-roman', 'theme-saas');
-  document.body.classList.add('theme-premium');
+  // visual direction (foret by default, support old premium value)
+  const visualTheme = (prefs && prefs.visualTheme) || 'foret';
+  const resolvedTheme = visualTheme === 'premium' ? 'foret' : visualTheme;
+  document.body.classList.remove('theme-foret', 'theme-mafia', 'theme-premium', 'theme-roman', 'theme-saas');
+  if (resolvedTheme === 'mafia') {
+    document.body.classList.add('theme-mafia');
+    document.documentElement.style.setProperty('--primary', '#A6782F');
+    document.documentElement.style.setProperty('--primary-dark', '#8F6625');
+  } else {
+    document.body.classList.add('theme-foret');
+    document.documentElement.style.setProperty('--primary', '#0F766E');
+    document.documentElement.style.setProperty('--primary-dark', '#115E59');
+  }
 }
 
 function saveAppearanceSettings() {
@@ -3206,14 +3241,17 @@ function saveAppearanceSettings() {
   if (!id) return;
   const prefs = getProjectPrefs(id) || {};
   const mode = document.querySelector('input[name="appearance"]:checked')?.value || 'auto';
-  const accent = document.getElementById('appearance-accent').value || prefs.accent || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
+  const visualTheme = document.getElementById('appearance-visual-theme')?.value || prefs.visualTheme || 'foret';
+  const accent = visualTheme === 'mafia' ? '#A6782F' : '#0F766E';
   prefs.appearance = mode;
   prefs.accent = accent;
   prefs.density = density;
   prefs.fontSize = fontSize;
-  prefs.visualTheme = 'premium';
+  prefs.visualTheme = visualTheme;
+  const accentInput = document.getElementById('appearance-accent');
+  if (accentInput) accentInput.value = accent;
   saveProjectPrefs(id, prefs);
   applyAppearance(prefs);
   showToast('Apparence enregistrée', 'success');
@@ -3957,6 +3995,8 @@ function openSpotify(url) {
 function renderSettings() {
   const project = getProjects().find(p => p.id === state.currentProjectId);
   if (!project) return;
+  ensureVisualThemeControls();
+  removeAccentControls();
   document.getElementById('settings-project-name').value = project.name;
   document.getElementById('settings-project-desc').value = project.description || '';
   const prefs = getProjectPrefs(state.currentProjectId) || {};
@@ -3964,8 +4004,6 @@ function renderSettings() {
   const mode = prefs.appearance || 'auto';
   const modeEl = document.querySelector(`input[name="appearance"][value="${mode}"]`);
   if (modeEl) modeEl.checked = true;
-
-  if (prefs.accent) document.getElementById('appearance-accent').value = prefs.accent;
 
   const density = prefs.density || 'comfortable';
   const denEl = document.querySelector(`input[name="density"][value="${density}"]`);
@@ -3975,24 +4013,9 @@ function renderSettings() {
   const fsEl = document.querySelector(`input[name="fontSize"][value="${fs}"]`);
   if (fsEl) fsEl.checked = true;
 
-  prefs.visualTheme = 'premium';
-
-  const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
-  const presetContainer = document.getElementById('accent-presets');
-  if (presetContainer) {
-    presetContainer.innerHTML = '';
-    presets.forEach(c => {
-      const b = document.createElement('button');
-      b.className = 'btn-icon';
-      b.style.background = c;
-      b.title = c;
-      b.onclick = () => {
-        document.getElementById('appearance-accent').value = c;
-        saveAppearanceSettings();
-      };
-      presetContainer.appendChild(b);
-    });
-  }
+  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'foret';
+  const visualThemeEl = document.getElementById('appearance-visual-theme');
+  if (visualThemeEl) visualThemeEl.value = prefs.visualTheme;
 
   // backup
   document.getElementById('settings-auto-backup').checked = !!prefs.autoBackup;
