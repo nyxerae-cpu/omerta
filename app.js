@@ -764,7 +764,7 @@ let debouncedRenderTimeline, debouncedHomeSearch;
 
 // ---------------------------------------------------------
 // Device mode preference (phone / desktop)
-const DEVICE_MODE_PREF_KEY = 'wb_device_mode_pref';
+const DEVICE_MODE_PREF_KEY = 'wb_local_device_mode_pref';
 
 function _applyDeviceModeToDom(mode) {
   document.body.classList.remove('device-mode-phone', 'device-mode-desktop');
@@ -794,8 +794,12 @@ function applySavedDeviceModePreference() {
   } catch (err) {
     console.warn('Unable to read device mode preference:', err);
   }
-  const mode = saved === 'phone' ? 'phone' : (saved === 'desktop' ? 'desktop' : '');
-  if (mode) _applyDeviceModeToDom(mode);
+  if (saved === 'phone' || saved === 'desktop') {
+    _applyDeviceModeToDom(saved);
+    return;
+  }
+  const autoMode = window.innerWidth <= 900 ? 'phone' : 'desktop';
+  _applyDeviceModeToDom(autoMode);
 }
 
 
@@ -1437,10 +1441,12 @@ function triggerImportAppTransferBundle() {
 function _getTransferStorageSnapshot() {
   const keepExact = new Set(['projets_liste', 'univers_liste']);
   const keepPrefixes = ['projet_', 'univers_', 'bibliotheque_', 'wb_'];
+  const skipKeys = new Set(['wb_device_mode_pref', 'wb_local_device_mode_pref']);
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (!key) continue;
+    if (skipKeys.has(key)) continue;
     if (keepExact.has(key) || keepPrefixes.some(prefix => key.startsWith(prefix))) {
       data[key] = localStorage.getItem(key);
     }
@@ -1451,10 +1457,12 @@ function _getTransferStorageSnapshot() {
 function _clearTransferStorageScope() {
   const keepExact = new Set(['projets_liste', 'univers_liste']);
   const keepPrefixes = ['projet_', 'univers_', 'bibliotheque_', 'wb_'];
+  const skipKeys = new Set(['wb_device_mode_pref', 'wb_local_device_mode_pref']);
   const keys = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (!key) continue;
+    if (skipKeys.has(key)) continue;
     if (keepExact.has(key) || keepPrefixes.some(prefix => key.startsWith(prefix))) {
       keys.push(key);
     }
