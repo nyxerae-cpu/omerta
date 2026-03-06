@@ -13,6 +13,7 @@ const state = {
   currentUniverseId: null,
   homeUniverseId:    null,
   currentSection:   'dashboard',
+  authUnlocked:     false,
   editingId:        null,
   editingSource:    'project',
   suppressHashRouting: false,
@@ -473,6 +474,7 @@ function prefillAuthFormFromPrefs() {
 }
 
 function showAuthPage(statusText = 'connexion requise') {
+  state.authUnlocked = false;
   ['home-page', 'project-page', 'bibliotheque-page', 'chapter-editor-page', 'scene-editor-page'].forEach(id => {
     document.getElementById(id)?.classList.add('hidden');
   });
@@ -480,9 +482,15 @@ function showAuthPage(statusText = 'connexion requise') {
   document.body.style.overflow = '';
   prefillAuthFormFromPrefs();
   setAuthStatus(statusText, false);
+  if (location.hash !== '#/auth') {
+    state.suppressHashRouting = true;
+    location.hash = '#/auth';
+    setTimeout(() => { state.suppressHashRouting = false; }, 0);
+  }
 }
 
 function hideAuthPage() {
+  state.authUnlocked = true;
   document.getElementById('auth-page')?.classList.add('hidden');
 }
 
@@ -827,6 +835,10 @@ async function installPWA() {
 // HOME PAGE
 // ============================================================
 function showHomePage(options = {}) {
+  if (!state.authUnlocked) {
+    showAuthPage('connecte-toi pour accéder à l\'app');
+    return;
+  }
   const skipHash = !!options.skipHash;
   state.currentProjectId = null;
   state.currentUniverseId = null;
@@ -1585,6 +1597,10 @@ function createProject() {
 // OPEN PROJECT
 // ============================================================
 function openProject(projectId, initialSection = 'dashboard', skipHash = false) {
+  if (!state.authUnlocked) {
+    showAuthPage('connecte-toi pour accéder à l\'app');
+    return;
+  }
   const projects = getProjects();
   const project  = projects.find(p => p.id === projectId);
   if (!project) return;
@@ -1687,6 +1703,10 @@ function confirmDeleteCurrentProject() {
 // NAVIGATION
 // ============================================================
 function navigateTo(section) {
+  if (!state.authUnlocked) {
+    showAuthPage('connecte-toi pour accéder à l\'app');
+    return;
+  }
   if (!section) section = 'dashboard';
   const opts = arguments[1] || {};
   const skipHash = !!opts.skipHash;
@@ -1742,6 +1762,7 @@ function navigateTo(section) {
 function _parseHashRoute() {
   const hash = (location.hash || '').trim();
   if (!hash || hash === '#') return { type: 'home' };
+  if (hash === '#/auth') return { type: 'auth' };
   if (hash === '#/home') return { type: 'home' };
   const um = hash.match(/^#\/universe\/([^/]+)$/);
   if (um) {
@@ -1775,6 +1796,14 @@ function _applyHashRoute() {
   if (state.suppressHashRouting) return;
   const route = _parseHashRoute();
   if (!route) return;
+  if (route.type === 'auth') {
+    showAuthPage('connecte-toi pour continuer');
+    return;
+  }
+  if (!state.authUnlocked) {
+    showAuthPage('connecte-toi pour continuer');
+    return;
+  }
   if (route.type === 'home') {
     if (state.currentProjectId !== null || state.homeUniverseId !== null) showHomePage({ skipHash: true });
     return;
