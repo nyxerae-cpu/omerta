@@ -40,7 +40,7 @@
   </div>
   <div class="home-content">
     <div style="margin-bottom:16px;position:relative;">
-      <input type="text" id="home-search" class="form-control" placeholder="🔍 Rechercher un projet..." oninput="debouncedHomeSearch()" autocomplete="off" aria-label="Rechercher un projet" style="width:100%;padding:6px 10px;">
+      <input type="text" id="home-search" class="form-control" placeholder="Rechercher un projet..." oninput="debouncedHomeSearch()" autocomplete="off" aria-label="Rechercher un projet" style="width:100%;padding:6px 10px;">
       <div id="home-search-results" class="search-results hidden" style="position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:4px;max-height:200px;overflow-y:auto;z-index:20;"></div>
     </div>
     <div id="home-universe-toolbar" class="home-universe-toolbar hidden">
@@ -56,7 +56,7 @@
     <div id="universes-grid" class="projects-grid universes-grid"></div>
     <div id="projects-grid" class="projects-grid"></div>
     <div id="no-projects" class="no-projects hidden">
-      <div class="no-icon">📚</div>
+      <div class="no-icon" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
       <h3>Aucun projet pour l'instant</h3>
       <p>Commencez par créer votre premier projet.</p>
       <button class="btn btn-primary btn-new-project" style="margin-top:16px">+ Créer un projet</button>
@@ -78,7 +78,7 @@
     </div>
     <div class="header-right">
       <div id="global-search-container" style="position:relative; margin-right:12px;">
-        <input type="text" id="global-search" class="form-control" placeholder="🔍 Rechercher (Ctrl+K)..." autocomplete="off" aria-label="Recherche globale" style="width:240px; padding:4px 8px;">
+        <input type="text" id="global-search" class="form-control" placeholder="Rechercher (Ctrl+K)..." autocomplete="off" aria-label="Recherche globale" style="width:240px; padding:4px 8px;">
         <div id="search-results" class="search-results hidden" style="position:absolute; top:100%; left:0; right:0; background:var(--white); border:1px solid var(--gray-200); border-radius:4px; max-height:300px; overflow-y:auto; z-index:20;"></div>
       </div>
       <button class="btn btn-ghost" onclick="openBibliotheque()" style="font-size:13px">Bibliothèque</button>
@@ -189,22 +189,22 @@
         </div>
         <div class="stats-grid">
           <div class="stat-card" onclick="navigateTo('personnages')" style="cursor:pointer">
-            <div class="stat-icon">👤</div>
+            <div class="stat-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             <div class="stat-value" id="stat-personnages">0</div>
             <div class="stat-label">Personnages</div>
           </div>
           <div class="stat-card" onclick="navigateTo('lieux')" style="cursor:pointer">
-            <div class="stat-icon">📍</div>
+            <div class="stat-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
             <div class="stat-value" id="stat-lieux">0</div>
             <div class="stat-label">Lieux</div>
           </div>
           <div class="stat-card" onclick="navigateTo('chapitres')" style="cursor:pointer">
-            <div class="stat-icon">📖</div>
+            <div class="stat-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
             <div class="stat-value" id="stat-chapitres">0</div>
             <div class="stat-label">Chapitres</div>
           </div>
           <div class="stat-card" onclick="navigateTo('relations')" style="cursor:pointer">
-            <div class="stat-icon">🔗</div>
+            <div class="stat-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.4 5.53"/><path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.18-1.18"/></svg></div>
             <div class="stat-value" id="stat-relations">0</div>
             <div class="stat-label">Relations</div>
           </div>
@@ -242,7 +242,7 @@
         </div>
         <div id="personnages-grid" class="cards-grid"></div>
         <div id="no-personnages" class="no-items hidden">
-          <div class="no-icon">👤</div>
+          <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
           <p>Aucun personnage pour l'instant.</p>
           <button class="btn btn-primary" style="margin-top:12px" onclick="openCharacterModal()">+ Créer un personnage</button>
         </div>
@@ -256,7 +256,7 @@
         </div>
         <div id="lieux-grid" class="cards-grid"></div>
         <div id="no-lieux" class="no-items hidden">
-          <div class="no-icon">📍</div>
+          <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
           <p>Aucun lieu pour l'instant.</p>
           <button class="btn btn-primary" style="margin-top:12px" onclick="openLocationModal()">+ Créer un lieu</button>
         </div>
@@ -270,7 +270,7 @@
         </div>
         <div id="chapitres-list" class="chapters-list"></div>
         <div id="no-chapitres" class="no-items hidden">
-          <div class="no-icon">📖</div>
+          <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
           <p>Aucun chapitre pour l'instant.</p>
           <button class="btn btn-primary" style="margin-top:12px" onclick="openChapterModal()">+ Créer un chapitre</button>
         </div>
@@ -412,7 +412,7 @@
         </div>
         <div id="playlists-grid" class="cards-grid"></div>
         <div id="no-playlists" class="no-items hidden">
-          <div class="no-icon">🎧</div>
+          <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
           <p>Aucune playlist pour l'instant.</p>
           <button class="btn btn-primary" style="margin-top:12px" onclick="openPlaylistModal()">+ Créer une playlist</button>
         </div>
@@ -444,7 +444,7 @@
         <div id="relations-graph" style="width:100%;height:400px;display:none;"></div>
         <div id="relations-list" style="display:none;overflow:auto;"></div>
         <div id="no-relations" class="no-items hidden">
-          <div class="no-icon">🔗</div>
+          <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.4 5.53"/><path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.18-1.18"/></svg></div>
           <p>Aucune relation pour l'instant.</p>
           <button class="btn btn-primary" style="margin-top:12px" onclick="openRelationModal()">+ Créer une relation</button>
         </div>
@@ -655,7 +655,7 @@
             <option>Tristesse</option><option>Humour</option><option>Courage</option><option>Trahison</option>
             <option>Redemption</option><option>Autre</option>
           </select>
-          <input type="text" id="cit-search" class="form-control" placeholder="🔍 Rechercher…" oninput="renderCitations()" style="flex:1;min-width:160px">
+          <input type="text" id="cit-search" class="form-control" placeholder="Rechercher…" oninput="renderCitations()" style="flex:1;min-width:160px">
         </div>
         <div id="citations-list"></div>
       </section>
@@ -677,7 +677,7 @@
             <option value="resolution">✅ Résolution</option>
             <option value="bilan">Bilan</option>
           </select>
-          <input type="text" id="journal-search" class="form-control" placeholder="🔍 Rechercher…" oninput="renderJournal()" style="flex:1">
+          <input type="text" id="journal-search" class="form-control" placeholder="Rechercher…" oninput="renderJournal()" style="flex:1">
         </div>
         <div id="journal-list"></div>
       </section>
@@ -736,7 +736,7 @@
     <div class="biblio-content">
       <div id="biblio-grid" class="biblio-grid"></div>
       <div id="no-biblio" class="no-items hidden">
-        <div class="no-icon">📝</div>
+        <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
         <p>Aucune scène dans la bibliothèque.</p>
         <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalSceneModal()">+ Créer une scène globale</button>
       </div>
@@ -763,7 +763,7 @@
     <div class="biblio-content">
       <div id="biblio-music-grid" class="biblio-grid"></div>
       <div id="no-biblio-music" class="no-items hidden">
-        <div class="no-icon">🎵</div>
+        <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
         <p>Aucune musique dans la bibliothèque.</p>
         <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalMusicModal()">+ Ajouter une musique</button>
       </div>
@@ -785,7 +785,7 @@
     <div class="biblio-content">
       <div id="biblio-sections-grid" class="biblio-grid"></div>
       <div id="no-biblio-sections" class="no-items hidden">
-        <div class="no-icon">📁</div>
+        <div class="no-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg></div>
         <p>Aucune section dans la bibliothèque.</p>
         <button class="btn btn-primary" style="margin-top:12px" onclick="openGlobalSectionModal()">+ Créer une section</button>
       </div>
@@ -1064,7 +1064,7 @@
           </div>
         </div>
         <div id="char-relations-list" class="char-relations-list">
-          <div class="no-items"><div class="no-icon">🔗</div><p>Enregistrez d'abord le personnage pour gérer ses relations.</p></div>
+          <div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.4 5.53"/><path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.18-1.18"/></svg></div><p>Enregistrez d'abord le personnage pour gérer ses relations.</p></div>
         </div>
       </div>
 
@@ -1078,7 +1078,7 @@
           </div>
         </div>
         <div id="char-gallery-grid" class="gallery-grid">
-          <div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>
+          <div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><p>Aucune photo dans la galerie.</p></div>
         </div>
       </div>
     </div>
@@ -1176,7 +1176,7 @@
           </div>
         </div>
         <div id="loc-gallery-grid" class="gallery-grid">
-          <div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>
+          <div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><p>Aucune photo dans la galerie.</p></div>
         </div>
       </div>
     </div>

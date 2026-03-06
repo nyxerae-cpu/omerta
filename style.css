@@ -383,7 +383,12 @@ button { font-family: inherit; }
   align-items: center;
   justify-content: center;
   font-size: 30px;
+  line-height: 0;
   margin-bottom: 16px;
+}
+.no-icon svg {
+  width: 24px;
+  height: 24px;
 }
 .no-projects h3 { font-size: 20px; color: var(--gray-800); margin-bottom: 8px; font-weight: 600; }
 .no-projects p { color: var(--gray-500); }
@@ -685,7 +690,12 @@ button { font-family: inherit; }
   align-items: center;
   justify-content: center;
   font-size: 16px;
+  line-height: 0;
   margin-bottom: 10px;
+}
+.stat-icon svg {
+  width: 16px;
+  height: 16px;
 }
 .stat-value {
   font-size: 38px;
@@ -2618,6 +2628,76 @@ body.dark-mode .dropdown-menu {
   body {
     font-size: 14px;
     line-height: 1.6;
+  }
+}
+
+/* ============================================================
+   TYPOGRAPHY SYSTEM (strict scale)
+   ============================================================ */
+:root {
+  --fs-display: clamp(1.8rem, 1.45rem + 1.2vw, 2.4rem);
+  --fs-h1: clamp(1.34rem, 1.2rem + .7vw, 1.75rem);
+  --fs-h2: clamp(1.16rem, 1.05rem + .45vw, 1.42rem);
+  --fs-h3: clamp(1.02rem, .96rem + .28vw, 1.15rem);
+  --fs-body: 0.96rem;
+  --fs-small: 0.84rem;
+  --lh-tight: 1.28;
+  --lh-body: 1.66;
+}
+
+body {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.app-title {
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+}
+
+.section-header h2,
+.home-universe-title,
+.modal-header h3,
+.settings-card h3 {
+  font-size: var(--fs-h1);
+  line-height: var(--lh-tight);
+}
+
+.item-card-title,
+.project-card-name,
+.chapter-title,
+.entity-tab-header h4,
+.biblio-card-title {
+  font-size: var(--fs-h2);
+  line-height: 1.35;
+}
+
+.form-group label,
+.meta-item,
+.item-card-meta,
+.item-card-notes,
+.dashboard-desc,
+.journal-body,
+.citation-contexte,
+.settings-hint {
+  font-size: var(--fs-small);
+  line-height: 1.58;
+}
+
+.btn,
+.form-control,
+.nav-item,
+.dropdown-item {
+  font-size: var(--fs-body);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --fs-display: clamp(1.45rem, 1.18rem + 1.05vw, 1.85rem);
+    --fs-h1: clamp(1.14rem, 1.02rem + .65vw, 1.35rem);
+    --fs-h2: clamp(1.02rem, .94rem + .32vw, 1.12rem);
+    --fs-body: 0.92rem;
+    --fs-small: 0.8rem;
   }
 }
 

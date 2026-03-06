@@ -5438,7 +5438,7 @@ function renderCharGallery() {
   const grid = document.getElementById('char-gallery-grid');
   if (!grid) return;
   if (!_charGalleryPhotos.length) {
-    grid.innerHTML = '<div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>';
+    grid.innerHTML = '<div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><p>Aucune photo dans la galerie.</p></div>';
     return;
   }
   grid.innerHTML = _charGalleryPhotos.map((src, i) => `
@@ -5477,7 +5477,7 @@ function renderLocGallery() {
   const grid = document.getElementById('loc-gallery-grid');
   if (!grid) return;
   if (!_locGalleryPhotos.length) {
-    grid.innerHTML = '<div class="no-items"><div class="no-icon">🖼️</div><p>Aucune photo dans la galerie.</p></div>';
+    grid.innerHTML = '<div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><p>Aucune photo dans la galerie.</p></div>';
     return;
   }
   grid.innerHTML = _locGalleryPhotos.map((src, i) => `
@@ -5531,7 +5531,7 @@ function renderCharRelations(charId, source) {
   if (!listEl) return;
 
   if (!charId) {
-    listEl.innerHTML = '<div class="no-items"><div class="no-icon">🔗</div><p>Enregistrez d\'abord le personnage pour gérer ses relations.</p></div>';
+    listEl.innerHTML = '<div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.4 5.53"/><path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.18-1.18"/></svg></div><p>Enregistrez d\'abord le personnage pour gérer ses relations.</p></div>';
     if (addBtn) addBtn.style.display = 'none';
     if (formEl) formEl.classList.add('hidden');
     return;
@@ -5552,7 +5552,7 @@ function renderCharRelations(charId, source) {
   const charRels = allRels.filter(r => r.personA === charId || r.personB === charId);
 
   if (!charRels.length) {
-    listEl.innerHTML = '<div class="no-items"><div class="no-icon">🔗</div><p>Aucune relation pour ce personnage.</p></div>';
+    listEl.innerHTML = '<div class="no-items"><div class="no-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.4 5.53"/><path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.18-1.18"/></svg></div><p>Aucune relation pour ce personnage.</p></div>';
     return;
   }
 
