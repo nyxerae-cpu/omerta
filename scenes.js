@@ -401,14 +401,64 @@ function renderSceneCard(s, chapitreId, chapters, idx = -1, total = 0) {
 // ============================================================
 let _editingLocalId = null;
 
-function openLocalSceneModal(sceneId = null, presetChapitreId = null) {
+function _sceneDraftKey() {
+  return `projet_${state.currentProjectId}_scene_draft`;
+}
+
+function _readSceneDraft() {
+  try {
+    return JSON.parse(localStorage.getItem(_sceneDraftKey()) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function _writeSceneDraft() {
+  // Autosave draft only for a new scene to avoid overwriting existing data while editing.
+  if (_editingLocalId) return;
+  const payload = {
+    titre: document.getElementById('ls-titre')?.value || '',
+    statut: document.getElementById('ls-statut')?.value || 'Brouillon',
+    pov: document.getElementById('ls-pov')?.value || '',
+    chapitreId: document.getElementById('ls-chapitre')?.value || '',
+    tags: document.getElementById('ls-tags')?.value || '',
+    contenu: document.getElementById('ls-contenu')?.value || '',
+    notes: document.getElementById('ls-notes')?.value || '',
+    updatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(_sceneDraftKey(), JSON.stringify(payload));
+}
+
+function _clearSceneDraft() {
+  localStorage.removeItem(_sceneDraftKey());
+}
+
+function _bindSceneDraftAutosave() {
+  const fields = ['ls-titre', 'ls-statut', 'ls-pov', 'ls-chapitre', 'ls-tags', 'ls-contenu', 'ls-notes'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.draftBound === '1') return;
+    el.addEventListener('input', _writeSceneDraft);
+    el.addEventListener('change', _writeSceneDraft);
+    el.dataset.draftBound = '1';
+  });
+}
+
+function openLocalSceneModal(sceneId = null, presetChapitreId = null, presetContenu = '', presetTitre = '') {
   _editingLocalId = sceneId;
+  const modal = document.getElementById('modal-local-scene');
   document.getElementById('modal-local-scene-title').textContent =
     sceneId ? 'Modifier la scène' : 'Nouvelle scène';
 
   ['ls-titre', 'ls-tags', 'ls-contenu', 'ls-notes'].forEach(id =>
     document.getElementById(id).value = ''
   );
+  ['ls-titre', 'ls-tags', 'ls-contenu', 'ls-notes', 'ls-statut', 'ls-pov', 'ls-chapitre'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = false;
+    if ('readOnly' in el) el.readOnly = false;
+  });
   document.getElementById('ls-statut').value = 'Brouillon';
 
   // Populate POV select
@@ -427,6 +477,22 @@ function openLocalSceneModal(sceneId = null, presetChapitreId = null) {
     chapters.map(c => `<option value="${c.id}">Ch. ${c.numero} — ${esc(c.titre)}</option>`).join('');
 
   if (presetChapitreId) chapSel.value = presetChapitreId;
+  if (!sceneId) {
+    if (presetTitre) document.getElementById('ls-titre').value = presetTitre;
+    if (presetContenu) document.getElementById('ls-contenu').value = presetContenu;
+    if (!presetTitre && !presetContenu) {
+      const draft = _readSceneDraft();
+      if (draft) {
+        document.getElementById('ls-titre').value = draft.titre || '';
+        document.getElementById('ls-statut').value = draft.statut || 'Brouillon';
+        document.getElementById('ls-pov').value = draft.pov || '';
+        document.getElementById('ls-chapitre').value = draft.chapitreId || document.getElementById('ls-chapitre').value;
+        document.getElementById('ls-tags').value = draft.tags || '';
+        document.getElementById('ls-contenu').value = draft.contenu || '';
+        document.getElementById('ls-notes').value = draft.notes || '';
+      }
+    }
+  }
 
   if (sceneId) {
     const s = getProjectData(state.currentProjectId, 'scenes').find(x => x.id === sceneId);
@@ -445,10 +511,12 @@ function openLocalSceneModal(sceneId = null, presetChapitreId = null) {
   if (window.editorState && window.editorState.quill) {
     try { window.editorState.quill.blur(); } catch {}
   }
+  if (modal) modal.classList.add('fullscreen-page');
+  _bindSceneDraftAutosave();
   openModal('modal-local-scene');
-  // focus title field as soon as modal is visible
-  const titleEl = document.getElementById('ls-titre');
-  titleEl.focus();
+  // focus writing area for chapter-like writing flow
+  const contentEl = document.getElementById('ls-contenu');
+  contentEl.focus();
 
 }
 
@@ -502,6 +570,7 @@ function saveLocalScene() {
 
   saveProjectData(state.currentProjectId, 'scenes', scenes);
   touchProject(state.currentProjectId);
+  _clearSceneDraft();
   closeModal('modal-local-scene');
   renderScenes();
   if (state.currentSection === 'manuscrit') renderManuscript();

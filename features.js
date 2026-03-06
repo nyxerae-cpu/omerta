@@ -228,6 +228,7 @@ function openJournalModal(id = null) {
   const entries = getJournalEntries();
   const e = id ? entries.find(x => x.id === id) : null;
   const now = new Date().toISOString().slice(0, 16);
+  const modal = document.getElementById('modal-journal');
 
   document.getElementById('jou-titre').value       = e?.titre       || '';
   document.getElementById('jou-contenu').value     = e?.contenu     || '';
@@ -237,7 +238,15 @@ function openJournalModal(id = null) {
   document.getElementById('jou-progression').value = e?.progression ?? '';
   document.getElementById('jou-mood').value        = e?.mood        || '';
   document.getElementById('modal-journal-title').textContent = id ? 'Modifier l\'entrée' : 'Nouvelle entrée';
+  if (modal) {
+    modal.classList.add('fullscreen-page');
+    modal.querySelectorAll('input, textarea, select').forEach(el => {
+      el.disabled = false;
+      if ('readOnly' in el) el.readOnly = false;
+    });
+  }
   openModal('modal-journal');
+  setTimeout(() => document.getElementById('jou-contenu')?.focus(), 60);
 }
 
 function saveJournalEntry() {

@@ -2590,6 +2590,9 @@ function renderSettings() {
   const fs = prefs.fontSize || 'md';
   const fsEl = document.querySelector(`input[name=\"fontSize\"][value=\"${fs}\"]`);
   if (fsEl) fsEl.checked = true;
+  // visual theme
+  const themeSel = document.getElementById('appearance-theme');
+  if (themeSel) themeSel.value = prefs.visualTheme || 'premium';
   // render accent presets
   const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
   const presetContainer = document.getElementById('accent-presets');
@@ -3196,6 +3199,10 @@ function applyAppearance(prefs) {
   document.body.classList.remove('font-sm','font-md','font-lg');
   const fs = (prefs && prefs.fontSize) || 'md';
   document.body.classList.add(`font-${fs}`);
+  // premium visual direction
+  document.body.classList.remove('theme-premium', 'theme-roman', 'theme-saas');
+  const visualTheme = (prefs && prefs.visualTheme) || 'premium';
+  document.body.classList.add(`theme-${visualTheme}`);
 }
 
 function saveAppearanceSettings() {
@@ -3206,7 +3213,12 @@ function saveAppearanceSettings() {
   const accent = document.getElementById('appearance-accent').value || prefs.accent || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
-  prefs.appearance = mode; prefs.accent = accent; prefs.density = density; prefs.fontSize = fontSize;
+  const visualTheme = document.getElementById('appearance-theme')?.value || prefs.visualTheme || 'premium';
+  prefs.appearance = mode;
+  prefs.accent = accent;
+  prefs.density = density;
+  prefs.fontSize = fontSize;
+  prefs.visualTheme = visualTheme;
   saveProjectPrefs(id, prefs);
   applyAppearance(prefs);
   showToast('Apparence enregistrée', 'success');
@@ -3823,9 +3835,31 @@ function openEventModal(evId=null, options = {}) {
   const lieux = getLocationsForProject(state.currentProjectId,true);
   const chaps = getProjectData(state.currentProjectId,'chapitres');
   const sel = document.getElementById('ev-associated');
-  if (chars.length) sel.innerHTML += '<optgroup label="Personnages">' + chars.map(c=>`<option value="personnages:${c.id}">${esc([c.prenom,c.nom].filter(Boolean).join(' '))}</option>`).join('') + '</optgroup>';
-  if (lieux.length) sel.innerHTML += '<optgroup label="Lieux">' + lieux.map(l=>`<option value="lieux:${l.id}">${esc(l.nom)}</option>`).join('') + '</optgroup>';
-  if (chaps.length) sel.innerHTML += '<optgroup label="Chapitres">' + chaps.map(c=>`<option value="chapitres:${c.id}">Ch. ${c.numero} – ${esc(c.titre)}</option>`).join('') + '</optgroup>';
+  const renderGroup = (title, items, mapper) => {
+    if (!items.length) return '';
+    return `
+      <div class="assoc-checklist-group">
+        <div class="assoc-checklist-title">${title}</div>
+        ${items.map(mapper).join('')}
+      </div>`;
+  };
+  sel.innerHTML = [
+    renderGroup('Personnages', chars, c => `
+      <label class="assoc-checklist-item">
+        <input type="checkbox" data-assoc="personnages:${c.id}">
+        <span>${esc([c.prenom,c.nom].filter(Boolean).join(' '))}</span>
+      </label>`),
+    renderGroup('Lieux', lieux, l => `
+      <label class="assoc-checklist-item">
+        <input type="checkbox" data-assoc="lieux:${l.id}">
+        <span>${esc(l.nom)}</span>
+      </label>`),
+    renderGroup('Chapitres', chaps, c => `
+      <label class="assoc-checklist-item">
+        <input type="checkbox" data-assoc="chapitres:${c.id}">
+        <span>Ch. ${c.numero} - ${esc(c.titre)}</span>
+      </label>`),
+  ].join('');
   if (evId) {
     const ev = getProjectData(state.currentProjectId,'events').find(x=>x.id===evId);
     if (ev) {
@@ -3836,12 +3870,18 @@ function openEventModal(evId=null, options = {}) {
       document.getElementById('ev-importance').value = ev.importance || 3;
       document.getElementById('ev-importance-value').textContent = ev.importance || '3';
       (ev.associated||[]).forEach(a=>{
-        const opt = sel.querySelector(`option[value="${a.type}:${a.id}"]`);
-        if (opt) opt.selected = true;
+        const key = typeof a === 'string' ? a : `${a.type}:${a.id}`;
+        const cb = sel.querySelector(`input[data-assoc="${key}"]`);
+        if (cb) cb.checked = true;
       });
     }
   }
   openEntityPage('modal-event');
+}
+
+function toggleEventAssociatedSelections(checked) {
+  const cbs = document.querySelectorAll('#ev-associated input[type="checkbox"][data-assoc]');
+  cbs.forEach(cb => { cb.checked = !!checked; });
 }
 
 function saveEvent() {
@@ -3851,9 +3891,9 @@ function saveEvent() {
   const desc = document.getElementById('ev-desc').value.trim();
   const type = document.getElementById('ev-type').value;
   const importance = parseInt(document.getElementById('ev-importance').value,10) || 1;
-  const sel = document.getElementById('ev-associated');
-  const associated = Array.from(sel.selectedOptions).map(o=>{
-    const [type,id] = o.value.split(':'); return {type,id};
+  const associated = Array.from(document.querySelectorAll('#ev-associated input[type="checkbox"][data-assoc]:checked')).map(cb => {
+    const [assocType, assocId] = cb.dataset.assoc.split(':');
+    return { type: assocType, id: assocId };
   });
   const id = state.currentProjectId;
   const list = getProjectData(id,'events');
@@ -3980,32 +4020,45 @@ function previewManuscript() {
 
 function openExportModal() {
   document.getElementById('export-form').reset();
+  document.querySelectorAll('#modal-export-ebook input, #modal-export-ebook select, #modal-export-ebook textarea').forEach(el => {
+    el.disabled = false;
+    if ('readOnly' in el) el.readOnly = false;
+  });
   openModal('modal-export-ebook');
+  setTimeout(() => {
+    document.getElementById('export-title')?.focus();
+  }, 30);
 }
 
 function generateEbook() {
   const form = document.getElementById('export-form');
+  const getVal = id => document.getElementById(id)?.value || '';
   const meta = {
-     title: form['export-title'].value.trim(),
-     author: form['export-author'].value.trim(),
-     series: form['export-series'].value.trim(),
-     seriesIndex: form['export-series-index'].value,
-     genre: form['export-genre'].value.trim(),
-     language: form['export-language'].value,
-     isbn: form['export-isbn'].value.trim(),
-     date: form['export-date'].value,
-     description: form['export-description'].value.trim()
+     title: getVal('export-title').trim(),
+     author: getVal('export-author').trim(),
+     series: getVal('export-series').trim(),
+     seriesIndex: getVal('export-series-index'),
+     genre: getVal('export-genre').trim(),
+     language: getVal('export-language'),
+     isbn: getVal('export-isbn').trim(),
+     date: getVal('export-date'),
+     description: getVal('export-description').trim()
   };
+  if (!meta.title || !meta.author) {
+    showToast('Titre et auteur sont requis', 'error');
+    return;
+  }
+  const formatRadio = form.querySelector('input[name="export-format"]:checked');
   const opts = {
-     format: form['export-format'].value,
-     coverFile: form['export-cover'].files[0],
-     toc: form['opt-toc'].checked,
-     titlePage: form['opt-title-page'].checked,
-     copyrightPage: form['opt-copyright-page'].checked,
-     chapterNumbers: form['opt-chapter-numbers'].checked,
-     font: form['opt-font'].value,
-     fontSize: form['opt-font-size'].value,
-     lineHeight: form['opt-line-height'].value,
+     format: formatRadio ? formatRadio.value : 'epub',
+     coverFile: document.getElementById('export-cover')?.files?.[0],
+     toc: !!document.getElementById('opt-toc')?.checked,
+     titlePage: !!document.getElementById('opt-title-page')?.checked,
+     copyrightPage: !!document.getElementById('opt-copyright-page')?.checked,
+     chapterNumbers: !!document.getElementById('opt-chapter-numbers')?.checked,
+     font: getVal('opt-font'),
+     fontSize: getVal('opt-font-size'),
+     lineHeight: getVal('opt-line-height'),
      separator: '###'
   };
   if (opts.format==='epub') {

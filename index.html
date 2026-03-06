@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#6366F1">
+  <meta name="theme-color" content="#0F766E">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="WorldBuilder">
   <title>WorldBuilder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="scenes.css">
   <link rel="stylesheet" href="editor.css">
@@ -515,6 +518,14 @@
               <div id="accent-presets" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"></div>
             </div>
             <div class="form-group" style="margin-top:16px;">
+              <label for="appearance-theme"><strong>Direction visuelle</strong></label>
+              <select id="appearance-theme" class="form-control" onchange="saveAppearanceSettings()">
+                <option value="premium">Premium naturel</option>
+                <option value="roman">Ultra luxe roman</option>
+                <option value="saas">SaaS premium moderne</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
               <label><strong>Densité</strong></label>
               <label><input type="radio" name="density" value="compact" onchange="saveAppearanceSettings()"> Compact</label><br>
               <label><input type="radio" name="density" value="comfortable" checked onchange="saveAppearanceSettings()"> Confortable</label><br>
@@ -987,7 +998,7 @@
         <div class="form-group"><label for="char-arc">Arc d'évolution</label><textarea id="char-arc" class="form-control" rows="2"></textarea></div>
         <div class="form-group">
           <label for="char-backstory">Backstory (texte riche)</label>
-          <div id="char-backstory-editor" class="editor-quill-wrap" style="height:180px; background:#fff;"></div>
+          <div id="char-backstory-editor" class="editor-quill-wrap" style="height:180px;"></div>
           <textarea id="char-backstory" class="form-control" rows="6" placeholder="Backstory..." style="display:none;"></textarea>
         </div>
       </div>
@@ -1760,8 +1771,12 @@
       </div>
       <div class="form-group">
         <label>Associé à</label>
-        <select id="ev-associated" class="form-control" multiple style="height:100px"></select>
-        <small class="field-hint">Perso/lieu/chapitre</small>
+        <div id="ev-associated" class="assoc-checklist"></div>
+        <div class="assoc-checklist-actions">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEventAssociatedSelections(true)">Tout sélectionner</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEventAssociatedSelections(false)">Tout désélectionner</button>
+        </div>
+        <small class="field-hint">Perso / lieu / chapitre</small>
       </div>
     </div>
     <div class="modal-footer">
@@ -2190,7 +2205,7 @@
 
 <!-- Journal modal -->
 <div id="modal-journal" class="modal-overlay hidden">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="modal-header">
       <h3 id="modal-journal-title">Nouvelle entrée</h3>
       <button class="modal-close" onclick="closeModal('modal-journal')">✕</button>
@@ -2225,7 +2240,7 @@
       </div>
       <div class="form-group">
         <label for="jou-contenu">Contenu</label>
-        <textarea id="jou-contenu" class="form-control" rows="5" placeholder="Détails de la session, idées, blocages…"></textarea>
+        <textarea id="jou-contenu" class="form-control journal-writing-input" rows="14" placeholder="Détails de la session, idées, blocages…"></textarea>
       </div>
       <div class="form-row">
         <div class="form-group">
