@@ -3964,20 +3964,42 @@ function renderSettings() {
   if (!project) return;
   document.getElementById('settings-project-name').value = project.name;
   document.getElementById('settings-project-desc').value = project.description || '';
-  const prefs = getProjectPrefs(state.currentProjectId);
-  // appearance radios
-  if (prefs.appearance) {
-    const el = document.querySelector(`input[name="appearance"][value="${prefs.appearance}"]`);
-    if (el) el.checked = true;
+  const prefs = getProjectPrefs(state.currentProjectId) || {};
+
+  const mode = prefs.appearance || 'auto';
+  const modeEl = document.querySelector(`input[name="appearance"][value="${mode}"]`);
+  if (modeEl) modeEl.checked = true;
+
+  if (prefs.accent) document.getElementById('appearance-accent').value = prefs.accent;
+
+  const density = prefs.density || 'comfortable';
+  const denEl = document.querySelector(`input[name="density"][value="${density}"]`);
+  if (denEl) denEl.checked = true;
+
+  const fs = prefs.fontSize || 'md';
+  const fsEl = document.querySelector(`input[name="fontSize"][value="${fs}"]`);
+  if (fsEl) fsEl.checked = true;
+
+  const themeSel = document.getElementById('appearance-theme');
+  if (themeSel) themeSel.value = prefs.visualTheme || 'premium';
+
+  const presets = ['#6366F1','#E11D48','#059669','#F59E0B','#10B981','#7C3AED','#EF4444'];
+  const presetContainer = document.getElementById('accent-presets');
+  if (presetContainer) {
+    presetContainer.innerHTML = '';
+    presets.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'btn-icon';
+      b.style.background = c;
+      b.title = c;
+      b.onclick = () => {
+        document.getElementById('appearance-accent').value = c;
+        saveAppearanceSettings();
+      };
+      presetContainer.appendChild(b);
+    });
   }
-  document.querySelectorAll('input[name="appearance"]').forEach(r => {
-    r.onchange = () => {
-      const prefs = getProjectPrefs(state.currentProjectId);
-      prefs.appearance = document.querySelector('input[name="appearance"]:checked').value;
-      saveProjectPrefs(state.currentProjectId, prefs);
-      applyAppearance(prefs);
-    };
-  });
+
   // backup
   document.getElementById('settings-auto-backup').checked = !!prefs.autoBackup;
   document.getElementById('settings-auto-backup').onchange = () => {
