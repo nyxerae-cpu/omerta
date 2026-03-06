@@ -114,6 +114,26 @@
           <button class="btn btn-secondary" onclick="pullCloudSyncNow()">Pull cloud</button>
         </div>
       </div>
+      <hr>
+      <div class="form-group">
+        <label>Sync auto avec compte (Supabase)</label>
+        <p class="settings-hint" style="margin:6px 0 10px">Renseigne ton URL + clé Anon Supabase, puis connecte-toi. La sync devient automatique sur tous tes appareils.</p>
+        <input id="hub-supa-url" type="text" class="form-control" placeholder="https://xxxxx.supabase.co" style="margin-bottom:8px">
+        <input id="hub-supa-anon" type="password" class="form-control" placeholder="Clé Anon Supabase" style="margin-bottom:8px">
+        <div class="form-row" style="gap:8px">
+          <input id="hub-supa-email" type="email" class="form-control" placeholder="Email compte" style="flex:1">
+          <input id="hub-supa-password" type="password" class="form-control" placeholder="Mot de passe" style="flex:1">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-secondary" onclick="saveSupabaseConfigFromHub()">Sauver config</button>
+          <button class="btn btn-secondary" onclick="supabaseSignUpFromHub()">Créer compte</button>
+          <button class="btn btn-secondary" onclick="supabaseSignInFromHub()">Se connecter</button>
+          <button class="btn btn-secondary" onclick="supabaseSignOutFromHub()">Se déconnecter</button>
+          <button class="btn btn-secondary" onclick="supabasePushNow()">Push Supabase</button>
+          <button class="btn btn-secondary" onclick="supabasePullNow()">Pull Supabase</button>
+        </div>
+        <div id="hub-supa-status" class="settings-hint" style="margin-top:8px">Statut: non configuré</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-hub-settings')">Fermer</button>
@@ -2571,6 +2591,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script defer src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="app.js"></script>
 <script defer src="scenes.js"></script>
 <script defer src="editor.js"></script>

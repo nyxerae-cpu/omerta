@@ -900,14 +900,24 @@ function leaveUniverseGallery() {
 function openHubSettingsModal() {
   const prefs = getEffectiveAppearancePrefs(null);
   const sync = getHubCloudSyncPrefs();
+  const supa = getSupabaseSyncPrefs();
   const visualSel = document.getElementById('hub-theme-visual');
   const modeSel = document.getElementById('hub-theme-mode');
   const tokenInput = document.getElementById('hub-sync-token');
   const gistInput = document.getElementById('hub-sync-gist-id');
+  const supaUrl = document.getElementById('hub-supa-url');
+  const supaAnon = document.getElementById('hub-supa-anon');
+  const supaEmail = document.getElementById('hub-supa-email');
+  const supaPassword = document.getElementById('hub-supa-password');
   if (visualSel) visualSel.value = prefs.visualTheme || 'mafia';
   if (modeSel) modeSel.value = prefs.appearance || 'auto';
   if (tokenInput) tokenInput.value = sync.token || '';
   if (gistInput) gistInput.value = sync.gistId || '';
+  if (supaUrl) supaUrl.value = supa.url || '';
+  if (supaAnon) supaAnon.value = supa.anonKey || '';
+  if (supaEmail) supaEmail.value = '';
+  if (supaPassword) supaPassword.value = '';
+  refreshSupabaseStatusLabel();
   openModal('modal-hub-settings');
 }
 
@@ -1084,6 +1094,172 @@ async function pullCloudSyncNow() {
   } catch (err) {
     showToast('Pull cloud échoué: ' + err.message, 'error');
   }
+}
+
+let _supabaseClient = null;
+let _supabaseSyncTimer = null;
+let _supabaseSyncInFlight = false;
+
+function getSupabaseSyncPrefs() {
+  const appPrefs = getAppPrefs();
+  const supa = appPrefs.supabaseSync;
+  if (!supa || typeof supa !== 'object') return { url: '', anonKey: '' };
+  return {
+    url: typeof supa.url === 'string' ? supa.url : '',
+    anonKey: typeof supa.anonKey === 'string' ? supa.anonKey : '',
+  };
+}
+
+function saveSupabaseConfigFromHub() {
+  const url = (document.getElementById('hub-supa-url')?.value || '').trim();
+  const anonKey = (document.getElementById('hub-supa-anon')?.value || '').trim();
+  const appPrefs = getAppPrefs();
+  appPrefs.supabaseSync = { url, anonKey };
+  saveAppPrefs(appPrefs);
+  _supabaseClient = null;
+  refreshSupabaseStatusLabel(); // Refresh the Supabase status label after saving the configuration
+  showToast('Config Supabase sauvegardée', 'success');
+}
+
+function _getSupabaseClient() {
+  if (_supabaseClient) return _supabaseClient;
+  const cfg = getSupabaseSyncPrefs();
+  if (!cfg.url || !cfg.anonKey) return null;
+  const hasSdk = !!(window.supabase && typeof window.supabase.createClient === 'function');
+  if (!hasSdk) return null;
+  _supabaseClient = window.supabase.createClient(cfg.url, cfg.anonKey);
+  return _supabaseClient;
+}
+
+async function _getSupabaseUser() {
+  const client = _getSupabaseClient();
+  if (!client) return null;
+  const { data } = await client.auth.getUser();
+  return data?.user || null;
+}
+
+async function refreshSupabaseStatusLabel() {
+  const statusEl = document.getElementById('hub-supa-status');
+  if (!statusEl) return;
+  const client = _getSupabaseClient();
+  if (!client) {
+    statusEl.textContent = 'Statut: non configuré';
+    return;
+  }
+  try {
+    const user = await _getSupabaseUser();
+    statusEl.textContent = user
+      ? `Statut: connecté (${user.email || user.id})`
+      : 'Statut: configuré, non connecté';
+  } catch {
+    statusEl.textContent = 'Statut: erreur de connexion Supabase';
+  }
+}
+
+async function supabaseSignUpFromHub() {
+  saveSupabaseConfigFromHub();
+  const email = (document.getElementById('hub-supa-email')?.value || '').trim();
+  const password = document.getElementById('hub-supa-password')?.value || '';
+  const client = _getSupabaseClient();
+  if (!client) { showToast('Configure URL + clé Anon', 'error'); return; }
+  if (!email || !password) { showToast('Email + mot de passe requis', 'error'); return; }
+  const { error } = await client.auth.signUp({ email, password });
+  if (error) { showToast('Signup Supabase: ' + error.message, 'error'); return; }
+  showToast('Compte créé. Vérifie ton email si demandé.', 'success');
+  await refreshSupabaseStatusLabel();
+}
+
+async function supabaseSignInFromHub() {
+  saveSupabaseConfigFromHub();
+  const email = (document.getElementById('hub-supa-email')?.value || '').trim();
+  const password = document.getElementById('hub-supa-password')?.value || '';
+  const client = _getSupabaseClient();
+  if (!client) { showToast('Configure URL + clé Anon', 'error'); return; }
+  if (!email || !password) { showToast('Email + mot de passe requis', 'error'); return; }
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) { showToast('Login Supabase: ' + error.message, 'error'); return; }
+  showToast('Connecté à Supabase', 'success');
+  await refreshSupabaseStatusLabel();
+  await supabasePullNow();
+}
+
+async function supabaseSignOutFromHub() {
+  const client = _getSupabaseClient();
+  if (!client) return;
+  await client.auth.signOut();
+  showToast('Déconnecté de Supabase', 'success');
+  await refreshSupabaseStatusLabel();
+}
+
+async function supabasePushNow() {
+  const client = _getSupabaseClient();
+  if (!client) { showToast('Supabase non configuré', 'error'); return false; }
+  const user = await _getSupabaseUser();
+  if (!user) { showToast('Connecte-toi à Supabase', 'error'); return false; }
+  const payload = _buildTransferPayload();
+  const { error } = await client.from('user_sync_data').upsert({
+    user_id: user.id,
+    payload,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  if (error) {
+    showToast('Push Supabase: ' + error.message, 'error');
+    return false;
+  }
+  showToast('Sync Supabase envoyée', 'success');
+  return true;
+}
+
+async function supabasePullNow() {
+  const client = _getSupabaseClient();
+  if (!client) { showToast('Supabase non configuré', 'error'); return false; }
+  const user = await _getSupabaseUser();
+  if (!user) { showToast('Connecte-toi à Supabase', 'error'); return false; }
+
+  const { data, error } = await client
+    .from('user_sync_data')
+    .select('payload,updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) {
+    showToast('Pull Supabase: ' + error.message, 'error');
+    return false;
+  }
+  if (!data || !data.payload) {
+    showToast('Aucune donnée cloud pour ce compte', 'error');
+    return false;
+  }
+  const entries = _extractTransferEntries(data.payload);
+  if (!entries || !entries.length) {
+    showToast('Payload cloud invalide', 'error');
+    return false;
+  }
+  return _applyTransferEntriesTransaction(entries, { reloadAfter: true });
+}
+
+function scheduleSupabaseAutoSync() {
+  if (_supabaseSyncInFlight) return;
+  if (_supabaseSyncTimer) clearTimeout(_supabaseSyncTimer);
+  _supabaseSyncTimer = setTimeout(async () => {
+    _supabaseSyncTimer = null;
+    const client = _getSupabaseClient();
+    if (!client) return;
+    const user = await _getSupabaseUser();
+    if (!user) return;
+    _supabaseSyncInFlight = true;
+    try {
+      const payload = _buildTransferPayload();
+      await client.from('user_sync_data').upsert({
+        user_id: user.id,
+        payload,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+    } catch (err) {
+      console.warn('Supabase autosync failed:', err);
+    } finally {
+      _supabaseSyncInFlight = false;
+    }
+  }, 2500);
 }
 
 function triggerImportAppTransferBundle() {
@@ -6060,3 +6236,58 @@ function deleteCharRelation(relId, source) {
 function addRelationFromCharSheet() {
   toggleCharRelationForm();
 }
+
+// ============================================================
+// SUPABASE AUTO SYNC BOOTSTRAP
+// ============================================================
+(function initSupabaseAutosyncHooks() {
+  const _origSaveProjectsForSync = saveProjects;
+  saveProjects = function(list) {
+    _origSaveProjectsForSync(list);
+    scheduleSupabaseAutoSync();
+  };
+
+  const _origSaveUniverseDataForSync = saveUniverseData;
+  saveUniverseData = function(universeId, type, data) {
+    _origSaveUniverseDataForSync(universeId, type, data);
+    scheduleSupabaseAutoSync();
+  };
+
+  const _origSaveProjectPrefsForSync = saveProjectPrefs;
+  saveProjectPrefs = function(projectId, prefs) {
+    _origSaveProjectPrefsForSync(projectId, prefs);
+    scheduleSupabaseAutoSync();
+  };
+
+  const _origSaveAppPrefsForSync = saveAppPrefs;
+  saveAppPrefs = function(prefs) {
+    _origSaveAppPrefsForSync(prefs);
+    scheduleSupabaseAutoSync();
+  };
+
+  const _origSaveProjectDataForSync = saveProjectData;
+  saveProjectData = function(projectId, type, data) {
+    _origSaveProjectDataForSync(projectId, type, data);
+    scheduleSupabaseAutoSync();
+  };
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    await refreshSupabaseStatusLabel();
+    const client = _getSupabaseClient();
+    if (!client) return;
+    const user = await _getSupabaseUser();
+    if (!user) return;
+
+    // If this device is empty, pull cloud data automatically.
+    if (getProjects().length === 0 && getUniverses().length === 0) {
+      const pulled = await supabasePullNow();
+      if (pulled) return;
+    }
+    // Otherwise push local state shortly after startup.
+    scheduleSupabaseAutoSync();
+  });
+
+  document.addEventListener('wb:app-pause', () => {
+    scheduleSupabaseAutoSync();
+  });
+})();
