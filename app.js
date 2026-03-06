@@ -2633,7 +2633,7 @@ function renderSettings() {
   const fs = prefs.fontSize || 'md';
   const fsEl = document.querySelector(`input[name=\"fontSize\"][value=\"${fs}\"]`);
   if (fsEl) fsEl.checked = true;
-  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'foret';
+  if (!prefs.visualTheme || prefs.visualTheme === 'premium') prefs.visualTheme = 'mafia';
   const visualThemeEl = document.getElementById('appearance-visual-theme');
   if (visualThemeEl) visualThemeEl.value = prefs.visualTheme;
 }
@@ -3223,8 +3223,8 @@ function applyAppearance(prefs) {
   const fs = (prefs && prefs.fontSize) || 'md';
   document.body.classList.add(`font-${fs}`);
   // visual direction (foret by default, support old premium value)
-  const visualTheme = (prefs && prefs.visualTheme) || 'foret';
-  const resolvedTheme = visualTheme === 'premium' ? 'foret' : visualTheme;
+  const visualTheme = (prefs && prefs.visualTheme) || 'mafia';
+  const resolvedTheme = visualTheme === 'premium' ? 'mafia' : visualTheme;
   document.body.classList.remove('theme-foret', 'theme-mafia', 'theme-premium', 'theme-roman', 'theme-saas');
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (resolvedTheme === 'mafia') {
@@ -3247,7 +3247,7 @@ function saveAppearanceSettings() {
   const mode = document.querySelector('input[name="appearance"]:checked')?.value || 'auto';
   const density = document.querySelector('input[name="density"]:checked')?.value || 'comfortable';
   const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'md';
-  const visualTheme = document.getElementById('appearance-visual-theme')?.value || prefs.visualTheme || 'foret';
+  const visualTheme = document.getElementById('appearance-visual-theme')?.value || prefs.visualTheme || 'mafia';
   const accent = visualTheme === 'mafia' ? '#A6782F' : '#0F766E';
   prefs.appearance = mode;
   prefs.accent = accent;
